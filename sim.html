@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>절 케프카 4페이즈 연습기 (시작 버튼 버그 완전 종결판)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #222;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+<script>
+let pastThundergaTruth = null;
+let pastBlizzagaTruth = null;
+let finalMemoryState = { showRings: false, topTruth: null, bottomTruth: null, ringStartTime: null, isCasting: false, castStartTime: null, thunderPattern: 0, blizzardPattern: 0 };
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const mapCenter = { x: 400, y: 400 };
+
+function checkFinalMemorySafety() {
+    if (player.isDead) return;
+
+    let pastThundergaVal = pastThundergaTruth === '진실' ? 1 : -1;
+    let futureThundergaVal = finalMemoryState.topTruth === '진실' ? 1 : -1;
+    let finalThundergaIsTruth = (pastThundergaVal * futureThundergaVal) === 1;
+
+    let pastBlizzagaVal = pastBlizzagaTruth === '진실' ? 1 : -1;
+    let futureBlizzagaVal = finalMemoryState.bottomTruth === '진실' ? 1 : -1;
+    let finalBlizzagaIsTruth = (pastBlizzagaVal * futureBlizzagaVal) === 1;
+
+    const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
+    
+    let inBlizzardAoE = false;
+    if (finalMemoryState.blizzardPattern === 0) {
+        if ((px >= 0 && py <= 0) || (px <= 0 && py >= 0)) inBlizzardAoE = true;
+    } else {
+        if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
+    }
+
+    let inThunderAoE = false;
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    switch(finalMemoryState.thunderPattern) {
+        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThunderAoE = true; break;
+        case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
+        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2*w)) inThunderAoE = true; break;
+        case 3: if ((rotY >= -2*w && rotY < -w) || (rotY >= 0 && rotY < w)) inThunderAoE = true; break;
+    }
+
+    let failedBlizzard = finalBlizzagaIsTruth ? inBlizzardAoE : !inBlizzardAoE;
+    let failedThunder = finalThundergaIsTruth ? inThunderAoE : !inThunderAoE;
+
+    if (failedBlizzard || failedThunder) {
+        triggerPlayerDeath("기믹 실패: 최종 기억 장판 판정 오답!");
+    } else {
+        explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#4ec9b0', alpha: 1 });
+    }
+}
+
+const mapRadius = 300;
+
+const player = {
+    x: 400,
+    y: 550,
+    radius: 12, 
+    speed: 4,
+    color: '#00ffcc',
+    isDead: false,
+    lastDx: 0,  
+    lastDy: -1   
+};
+
+const bossRadius = 25;
+const bosses = [
+    { x: mapCenter.x, y: mapCenter.y, color: '#9b5de5', duration: 4000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '' }, 
+    { x: mapCenter.x + Math.cos(Math.PI * 4 / 3) * (mapRadius - 40), y: mapCenter.y + Math.sin(Math.PI * 4 / 3) * (mapRadius - 40), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '', castName: '' }, 
+    { x: mapCenter.x + Math.cos(Math.PI * 5 / 3) * (mapRadius - 40), y: mapCenter.y + Math.sin(Math.PI * 5 / 3) * (mapRadius - 40), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '' }  
+];
+
+const invisibleObjects = {
+    h12: { x: mapCenter.x, y: mapCenter.y - 180 },
+    h3:  { x: mapCenter.x + 180, y: mapCenter.y },
+    h6:  { x: mapCenter.x, y: mapCenter.y + 180 },
+    h9:  { x: mapCenter.x - 180, y: mapCenter.y }
+};
+
+let imagesLoaded = { 
+    truth: false, fake: false, bomb: false, eye: false, water: false, thunder: false,
+    deadScar: false, liveScar: false, transcend: false, alag: false,
+    flood: false, flame: false 
+};
+
+const imgTruth = new Image(); imgTruth.src = "진짜.png"; imgTruth.onload = () => imagesLoaded.truth = true;
+const imgFake = new Image(); imgFake.src = "가짜.png"; imgFake.onload = () => imagesLoaded.fake = true;
+const imgBomb = new Image(); imgBomb.src = "가속도폭탄.png"; imgBomb.onload = () => imagesLoaded.bomb = true;
+const imgEye = new Image(); imgEye.src = "마안.png"; imgEye.onload = () => imagesLoaded.eye = true;
+const imgWater = new Image(); imgWater.src = "물압축.png"; imgWater.onload = () => imagesLoaded.water = true;
+const imgThunder = new Image(); imgThunder.src = "갈래번개.png"; imgThunder.onload = () => imagesLoaded.thunder = true;
+
+const imgDeadScar = new Image(); imgDeadScar.src = "사자의상처(파란색).png"; imgDeadScar.onload = () => imagesLoaded.deadScar = true;
+const imgLiveScar = new Image(); imgLiveScar.src = "생자의상처(분홍색).png"; imgLiveScar.onload = () => imagesLoaded.liveScar = true;
+const imgTranscend = new Image(); imgTranscend.src = "생자의초월.png"; imgTranscend.onload = () => imagesLoaded.transcend = true;
+const imgAlag = new Image(); imgAlag.src = "알라그필드.png"; imgAlag.onload = () => imagesLoaded.alag = true;
+
+const imgFlood = new Image(); imgFlood.src = "물.png"; imgFlood.onload = () => imagesLoaded.flood = true;
+const imgFlame = new Image(); imgFlame.src = "불.png"; imgFlame.onload = () => imagesLoaded.flame = true;
+
+let isGameStarted = false;
+let isGameOver = false; 
+let deathReason = "";
+let globalStartTime = null;
+let waveStartTime = null; 
+let elapsedTimeDisplay = "0.0";
+
+const originalDateNow = Date.now;
+let isPaused = false;
+let pauseStartTime = null;
+let totalPausedTime = 0;
+
+Date.now = function() {
+    if (isPaused) return pauseStartTime - totalPausedTime;
+    return originalDateNow.call(Date) - totalPausedTime;
+};
+
+window.addEventListener('keydown', e => {
+    if (e.key.toLowerCase() === 'p') {
+        if (!isGameStarted || isGameOver) return;
+        isPaused = !isPaused;
+        if (isPaused) {
+            pauseStartTime = originalDateNow.call(Date);
+        } else {
+            totalPausedTime += (originalDateNow.call(Date) - pauseStartTime);
+        }
+    }
+});
+
+let currentWave = 1; 
+let activeDebuffs = [];
+let firstWaveGroup = ""; 
+let firstWaveDurationType = ""; 
+
+let globalEnvPattern = ""; 
+let firstWave11BossGimmick = ""; 
+let currentWaveTruthStatus = ""; 
+
+let virtualEnvTimer = { timeLeft: 0, initialDuration: 0, processed: true };
+
+let backgroundEyes = [];
+let explosionVisuals = [];
+let showDebugText = true;
+
+let finalPhaseTimeline = [
+    { t: 51, triggered: false },
+    { t: 53, triggered: false },
+    { t: 57, triggered: false },
+    { t: 70, triggered: false },
+    { t: 74, triggered: false },
+    { t: 79, triggered: false },
+    { t: 84, triggered: false },
+    { t: 87, triggered: false }
+];
+
+let subBossPlacedAoEs = [];
+
+let isSubBossesVanished = false; 
+let wave3TimelineState = "NONE"; 
+let wave3TimerAnchor = null;
+
+let wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+
+let thunderga_Gimmick = {
+    isCasting: false,
+    startTime: null,
+    duration: 4000,
+    progress: 0,
+    effect: '',        
+    thunderPattern: 0, 
+    showAoE: false,
+    aoeStartTime: null,
+    judged: false
+};
+
+let blizzaga_Gimmick = {
+    isCasting: false,
+    startTime: null,
+    duration: 4000,
+    progress: 0,
+    effect: '',
+    blizzardPattern: 0,
+    showAoE: false,
+    aoeStartTime: null,
+    judged: false
+};
+
+const startButton = { x: 340, y: 20, width: 120, height: 40, text: '시작하기' };
+const retryButton = { x: 320, y: 380, width: 160, height: 50, text: '다시 도전하기' }; 
+const toggleButton = { x: 30, y: 695, width: 120, height: 35, text: '가이드 ON' }; 
+const resetButton = { x: 30, y: 740, width: 120, height: 35, text: '전투 리셋' };
+
+const effectTypes = ['거짓', '진실'];
+let bossA_Gimmick = { topEffect: '', bottomEffect: '', blizzardPattern: 0, thunderPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
+
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function randomizeGimmick() {
+    bossA_Gimmick.topEffect = effectTypes[Math.floor(Math.random() * 2)];
+    bossA_Gimmick.bottomEffect = effectTypes[Math.floor(Math.random() * 2)];
+    bossA_Gimmick.blizzardPattern = Math.floor(Math.random() * 2);
+    bossA_Gimmick.thunderPattern = Math.floor(Math.random() * 4); 
+    bossA_Gimmick.showAoE = false;
+    bossA_Gimmick.judged = false;
+
+    bosses[1].currentEffect = effectTypes[Math.floor(Math.random() * 2)];
+    bosses[2].currentEffect = effectTypes[Math.floor(Math.random() * 2)];
+
+    if (currentWave === 1) {
+        firstWave11BossGimmick = Math.random() < 0.5 ? "해일" : "불꽃";
+        bosses[1].castName = firstWave11BossGimmick;
+    } else if (currentWave === 2) {
+        bosses[1].castName = (firstWave11BossGimmick === "해일") ? "불꽃" : "해일";
+    }
+}
+
+function assign11BossDebuff(wave) {
+    let now = Date.now();
+    let current11Gimmick = bosses[1].castName;
+    let absoluteTime = current11Gimmick === "불꽃" ? 62 : 84;
+    let wave11Duration = (wave === 1) ? absoluteTime - 12 : absoluteTime - 24;
+
+    activeDebuffs.push({
+        type: current11Gimmick === "불꽃" ? "FLAME" : "FLOOD", actionText: current11Gimmick,
+        img: current11Gimmick === "불꽃" ? imgFlame : imgFlood, loadKey: current11Gimmick === "불꽃" ? "flame" : "flood",
+        color: current11Gimmick === "불꽃" ? '#ff4500' : '#00b4d8', initialDuration: wave11Duration,
+        assignTime: now, timeLeft: wave11Duration, rule: bosses[1].currentEffect, row: 2, processed: false
+    });
+}
+
+function assignGimmickDebuffs(wave) {
+    let now = Date.now();
+    let truthStatus = bosses[2].currentEffect; 
+    currentWaveTruthStatus = truthStatus;
+    waveStartTime = now;
+
+    if (wave === 3) {
+        wave3TimelineState = "CAST_DONE";
+        wave3TimerAnchor = now; 
+
+        let isDeadScar = Math.random() < 0.5; 
+        let isAlag = Math.random() < 0.5;     
+        let colorType = isDeadScar ? "DEAD_SCAR" : "LIVE_SCAR";
+        let hitType = isAlag ? "ALAG" : "TRANSCEND";
+
+        activeDebuffs.push({
+            type: colorType, actionText: "CALC", img: isDeadScar ? imgDeadScar : imgLiveScar, loadKey: "deadScar", color: '#00b4d8',
+            initialDuration: 9, assignTime: now, timeLeft: 9, rule: truthStatus, row: 1, processed: false
+        });
+
+        activeDebuffs.push({
+            type: hitType, actionText: "CALC", img: isAlag ? imgAlag : imgTranscend, loadKey: "alag", color: '#ff4500',
+            initialDuration: 9, assignTime: now, timeLeft: 9, rule: truthStatus, row: 1, processed: false
+        });
+        return; 
+    }
+
+    if (wave === 1) {
+        firstWaveGroup = Math.random() < 0.5 ? "SET1" : "SET2";
+        firstWaveDurationType = Math.random() < 0.5 ? "LONG" : "SHORT";
+    }
+
+    let isLongTurn = (wave === 1 && firstWaveDurationType === "LONG") || (wave === 2 && firstWaveDurationType === "SHORT");
+    let isCurrentSet1 = (wave === 1 && firstWaveGroup === "SET1") || (wave === 2 && firstWaveGroup === "SET2");
+
+    let absoluteTime = isLongTurn ? 74 : 51;
+    let duration = wave === 1 ? absoluteTime - 8 : absoluteTime - 20;
+
+    let absoluteEyeTime = wave === 1 ? 57 : 79;
+    let eyeDuration = wave === 1 ? absoluteEyeTime - 8 : absoluteEyeTime - 20;
+
+    backgroundEyes.push({ wave: wave, initialDuration: eyeDuration, assignTime: now, timeLeft: eyeDuration, rule: truthStatus, processed: false });
+
+    if (isCurrentSet1) {
+        let isWater = Math.random() < 0.5;
+        let typeStr = isWater ? "WATER" : "THUNDER";
+        let isTruthStatus = (truthStatus === "진실");
+        let actionTxt = isWater ? (isTruthStatus ? "SHARE" : "SPREAD") : (isTruthStatus ? "SPREAD" : "SHARE");
+        activeDebuffs.push({ type: typeStr, actionText: actionTxt, img: isWater ? imgWater : imgThunder, loadKey: isWater ? "water" : "thunder", color: isWater ? '#00b4d8' : '#bf55ec', initialDuration: duration, assignTime: now, timeLeft: duration, rule: truthStatus, row: 1, processed: false });
+    } else {
+        let isTruthStatus = (truthStatus === "진실");
+        activeDebuffs.push({ type: "BOMB", actionText: isTruthStatus ? "STOP" : "MOVE", img: imgBomb, loadKey: "bomb", color: '#ff9f1c', initialDuration: duration, assignTime: now, timeLeft: duration, rule: truthStatus, row: 1, processed: false });
+        activeDebuffs.push({ type: "EYE", actionText: isTruthStatus ? "HIDE" : "LOOK", img: imgEye, loadKey: "eye", color: '#ff3333', initialDuration: eyeDuration, assignTime: now, timeLeft: eyeDuration, rule: truthStatus, row: 1, processed: false });
+    }
+}
+
+function isFacingBossA() {
+    let toBossX = mapCenter.x - player.x;
+    let toBossY = mapCenter.y - player.y;
+    return (player.lastDx * toBossX + player.lastDy * toBossY) > 0; 
+}
+
+function triggerPlayerDeath(reason) {
+    player.isDead = true; isGameOver = true;
+    deathReason = reason;
+    explosionVisuals.push({ x: player.x, y: player.y, radius: 15, maxRadius: 100, color: '#ff3333', alpha: 1 });
+}
+
+function executeSingleEyeCheck(eyeObj) {
+    if (eyeObj.processed || player.isDead) return;
+    eyeObj.processed = true;
+    let isTruth = (eyeObj.rule === "진실");
+    let facingA = isFacingBossA(); 
+    if (isTruth) {
+        if (facingA) triggerPlayerDeath(`${eyeObj.wave}회차 마안 실패: [진실] 중앙 보스를 주시함!`);
+        else explosionVisuals.push({ x: mapCenter.x, y: mapCenter.y, radius: 10, maxRadius: 150, color: '#bf55ec', alpha: 1 });
+    } else {
+        if (!facingA) triggerPlayerDeath(`${eyeObj.wave}회차 마안 실패: [거짓] 중앙 보스를 등짐!`);
+        else explosionVisuals.push({ x: mapCenter.x, y: mapCenter.y, radius: 10, maxRadius: 150, color: '#a2d2ff', alpha: 1 });
+    }
+    activeDebuffs.forEach(d => { if (d.type === "EYE" && d.initialDuration === eyeObj.initialDuration) d.processed = true; });
+}
+
+function executeEnvironmentCheck(targetAbsoluteTime) {
+    if (player.isDead) return;
+
+    let waterDebuff = activeDebuffs.find(d => d.type === "WATER" && d.timeLeft <= 2 && !d.processed);
+    let thunderDebuff = activeDebuffs.find(d => d.type === "THUNDER" && d.timeLeft <= 2 && !d.processed);
+    let bombDebuff = activeDebuffs.find(d => d.type === "BOMB" && d.timeLeft <= 2 && !d.processed);
+
+    let hasWater = !!waterDebuff;
+    let hasThunder = !!thunderDebuff;
+    let hasBomb = !!bombDebuff;
+    let isNoEnvBuff = (!hasWater && !hasThunder);
+
+    if (hasBomb) {
+        let isBombTruth = (bombDebuff.rule === "진실");
+        let isMoving = keys['w'] || keys['s'] || keys['a'] || keys['d'] || keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright'];
+        if (isBombTruth ? isMoving : !isMoving) triggerPlayerDeath(isBombTruth ? "가속도 폭탄 실패: 멈추지 않음!" : "가속도 폭탄 실패: 움직이지 않음!");
+    }
+
+    let dist12 = Math.hypot(invisibleObjects.h12.x - player.x, invisibleObjects.h12.y - player.y) < 120;
+    let dist3  = Math.hypot(invisibleObjects.h3.x - player.x, invisibleObjects.h3.y - player.y) < 120;
+    let dist6  = Math.hypot(invisibleObjects.h6.x - player.x, invisibleObjects.h6.y - player.y) < 120;
+    let dist9  = Math.hypot(invisibleObjects.h9.x - player.x, invisibleObjects.h9.y - player.y) < 120;
+
+    if (isNoEnvBuff) {
+        if (!dist12 && !dist6) {
+            triggerPlayerDeath(`기믹 실패: [지원 타이밍] 디버프 미보유 상태이므로 12시/6시(쉐어 위치)로 집합해야 합니다!`);
+            return;
+        } else if (dist3 || dist9) {
+            triggerPlayerDeath(`기믹 실패: 지원 타이밍에 3시/9시 영역 침범!`);
+            return;
+        } else {
+            explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#4ec9b0', alpha: 1 });
+        }
+    } else {
+        let activeDebuff = waterDebuff || thunderDebuff;
+        let isEnvTruth = (activeDebuff.rule === "진실");
+        let finalGimmickResult = ""; 
+        if (hasWater) {
+            finalGimmickResult = isEnvTruth ? "SHARE" : "SPREAD"; 
+        } else if (hasThunder) {
+            finalGimmickResult = isEnvTruth ? "SPREAD" : "SHARE"; 
+        }
+
+        if (finalGimmickResult === "SPREAD") {
+            if (!dist3 && !dist9) {
+                triggerPlayerDeath(`기믹 실패: [산개 판정] 보스 조건에 따른 산개 정위치(3시/9시) 이탈!`);
+            } else {
+                explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#ff9f1c', alpha: 1 });
+            }
+        } else if (finalGimmickResult === "SHARE") {
+            if (!dist12 && !dist6) {
+                triggerPlayerDeath(`기믹 실패: [쉐어 판정] 보스 조건에 따른 집합 정위치(12시/6시) 이탈!`);
+            } else if (dist3 || dist9) {
+                triggerPlayerDeath(`기믹 실패: 쉐어 단계에서 3시/9시 영역 침범!`);
+            } else {
+                explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#00b4d8', alpha: 1 });
+            }
+        }
+    }
+
+    activeDebuffs.forEach(d => { if ((d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && d.timeLeft <= 2) d.processed = true; });
+}
+
+function checkThundergaSafety() {
+    if (thunderga_Gimmick.judged || player.isDead) return;
+    thunderga_Gimmick.judged = true;
+    
+    const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
+    let inThundergaAoE = false;
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    
+    switch(thunderga_Gimmick.thunderPattern) {
+        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThundergaAoE = true; break;
+        case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThundergaAoE = true; break;
+        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2*w)) inThundergaAoE = true; break;
+        case 3: if ((rotY >= -2*w && rotY < -w) || (rotY >= 0 && rotY < w)) inThundergaAoE = true; break;
+    }
+
+    let isTruth = (thunderga_Gimmick.effect === "진실");
+    if (isTruth ? inThundergaAoE : !inThundergaAoE) {
+        triggerPlayerDeath("중앙 보스 썬더가 피격!");
+    } else {
+        explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 100, color: '#ffd700', alpha: 1 });
+    }
+}
+
+function checkBlizzagaSafety() {
+    if (blizzaga_Gimmick.judged || player.isDead) return;
+    blizzaga_Gimmick.judged = true;
+    
+    const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
+    let inBlizzardAoE = false;
+    if (blizzaga_Gimmick.blizzardPattern === 0) {
+        if ((px >= 0 && py <= 0) || (px <= 0 && py >= 0)) inBlizzardAoE = true;
+    } else {
+        if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
+    }
+
+    let isTruth = (blizzaga_Gimmick.effect === "진실");
+    if (isTruth ? inBlizzardAoE : !inBlizzardAoE) {
+        triggerPlayerDeath("중앙 보스 블리자가 피격!");
+    } else {
+        explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 100, color: '#00b4d8', alpha: 1 });
+    }
+}
+
+function evaluateSubBossAoESafety(aoe) {
+    if (player.isDead) return;
+    let dist = Math.hypot(player.x - aoe.x, player.y - aoe.y);
+
+    if (aoe.shape === "CIRCLE") {
+        if (dist <= 120) triggerPlayerDeath(`11시 보스 [원형 장판] 피격 즉사!`);
+    } else if (aoe.shape === "DONUT") {
+        if (dist >= 80 && dist <= 220) triggerPlayerDeath(`11시 보스 [고리 도넛 장판] 피격 즉사!`);
+    }
+    if (!player.isDead) {
+        explosionVisuals.push({ x: aoe.x, y: aoe.y, radius: 10, maxRadius: aoe.shape === 'CIRCLE' ? 120 : 220, color: '#a2d2ff', alpha: 1 });
+    }
+}
+
+function checkWave3SplitSafety() {
+    let colorDebuff = activeDebuffs.find(d => d.type === "DEAD_SCAR" || d.type === "LIVE_SCAR");
+    let hitDebuff = activeDebuffs.find(d => d.type === "ALAG" || d.type === "TRANSCEND");
+    if (!colorDebuff || !hitDebuff || player.isDead) return;
+
+    colorDebuff.processed = true; hitDebuff.processed = true;
+    wave3BossB.showAoE = false;
+
+    const vX = player.x - wave3BossB.x; const vY = player.y - wave3BossB.y;
+    const bCenterX = mapCenter.x - wave3BossB.x; const bCenterY = mapCenter.y - wave3BossB.y;
+    
+    const crossProduct = bCenterX * vY - bCenterY * vX;
+    let standOnColor = (crossProduct >= 0) ? "PINK" : "BLUE";
+
+    let isBlueScar = colorDebuff.type === "DEAD_SCAR";
+    let isAlagField = hitDebuff.type === "ALAG";
+    
+    let isBossTruth = (wave3BossB.currentEffect === "진실");
+    if (!isBossTruth) isAlagField = !isAlagField; 
+
+    if (isAlagField) {
+        if (isBlueScar && standOnColor !== "PINK") triggerPlayerDeath("3회차 실패: [알라그-반대색] 분홍색 영역으로 서지 않음!");
+        if (!isBlueScar && standOnColor !== "BLUE") triggerPlayerDeath("3회차 실패: [알라그-반대색] 파란색 영역으로 서지 않음!");
+    } else {
+        if (isBlueScar && standOnColor !== "BLUE") triggerPlayerDeath("3회차 실패: [초월-일치색] 파란색 영역으로 서지 않음!");
+        if (!isBlueScar && standOnColor !== "PINK") triggerPlayerDeath("3회차 실패: [초월-일치색] 분홍색 영역으로 서지 않음!");
+    }
+
+    if (!player.isDead) {
+        explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 100, color: standOnColor === "BLUE" ? '#00b4d8' : '#ff69b4', alpha: 1 });
+    }
+}
+
+function processDebuffTrigger(debuff) {
+    if (debuff.processed || player.isDead) return;
+    if (debuff.type === "DEAD_SCAR" || debuff.type === "LIVE_SCAR" || debuff.type === "ALAG" || debuff.type === "TRANSCEND") return;
+
+    if (debuff.type === "FLAME" || debuff.type === "FLOOD") { 
+        debuff.processed = true; 
+        let targetShape = (debuff.type === "FLAME") ? (debuff.rule === "진실" ? "CIRCLE" : "DONUT") : (debuff.rule === "진실" ? "DONUT" : "CIRCLE");
+        subBossPlacedAoEs.push({
+            x: player.x, y: player.y, shape: targetShape, placeTime: Date.now(),
+            detonationTime: Date.now() + 3000, showVisual: false, judged: false
+        });
+        return; 
+    }
+
+    let isTruth = (debuff.rule === "진실");
+
+    switch(debuff.type) {
+        case "WATER":
+        case "THUNDER":
+        case "BOMB":
+            break;
+        case "EYE":
+            debuff.processed = true;
+            let targetEye = backgroundEyes.find(e => e.initialDuration === debuff.initialDuration && !e.processed);
+            if (targetEye) executeSingleEyeCheck(targetEye);
+            break;
+    }
+}
+
+function resetGame() {
+    isGameStarted = true; isGameOver = false; deathReason = ""; globalStartTime = Date.now(); waveStartTime = Date.now();
+    player.x = 400; player.y = 550; player.isDead = false; player.lastDx = 0; player.lastDy = -1;
+    currentWave = 1; activeDebuffs = []; explosionVisuals = []; firstWaveGroup = ""; firstWaveDurationType = "";
+    backgroundEyes = [];
+    subBossPlacedAoEs = []; 
+    isSubBossesVanished = false;
+    wave3TimelineState = "NONE";
+    wave3TimerAnchor = null;
+    wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+
+    thunderga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', thunderPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
+    blizzaga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', blizzardPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
+
+    pastThundergaTruth = null;
+    pastBlizzagaTruth = null;
+    finalMemoryState = { showRings: false, topTruth: null, bottomTruth: null, ringStartTime: null, isCasting: false, castStartTime: null, thunderPattern: 0, blizzardPattern: 0 };
+
+    finalPhaseTimeline.forEach(evt => evt.triggered = false);
+
+    globalEnvPattern = Math.random() < 0.5 ? "WATER_FIRST" : "THUNDER_FIRST";
+    currentWaveTruthStatus = "";
+
+    bosses.forEach(b => { b.startTime = null; b.progress = 0; b.isCasting = false; b.castCompleteTime = null; b.currentEffect = ''; b.castName = ''; });
+    randomizeGimmick();
+    bosses[0].startTime = globalStartTime; bosses[0].isCasting = true;
+    bosses[1].startTime = globalStartTime; bosses[1].isCasting = true; 
+    bosses[2].startTime = globalStartTime; bosses[2].isCasting = true;
+}
+
+canvas.addEventListener('click', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (!isGameStarted) {
+        if (mouseX >= startButton.x && mouseX <= startButton.x + startButton.width &&
+            mouseY >= startButton.y && mouseY <= startButton.y + startButton.height) {
+            resetGame();
+        }
+        return;
+    }
+    if (isGameStarted && !isGameOver) {
+        if (mouseX >= toggleButton.x && mouseX <= toggleButton.x + toggleButton.width &&
+            mouseY >= toggleButton.y && mouseY <= toggleButton.y + toggleButton.height) {
+            showDebugText = !showDebugText;
+        }
+        if (mouseX >= resetButton.x && mouseX <= resetButton.x + resetButton.width &&
+            mouseY >= resetButton.y && mouseY <= resetButton.y + resetButton.height) {
+            resetGame();
+        }
+    }
+    if (isGameOver) {
+        if (mouseX >= retryButton.x && mouseX <= retryButton.x + retryButton.width &&
+            mouseY >= retryButton.y && mouseY <= retryButton.y + retryButton.height) {
+            resetGame();
+        }
+    }
+});
+
+function evaluateCurrentPosition() {
+    const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
+    let inBlizzardAoE = false;
+    if (bossA_Gimmick.blizzardPattern === 0) {
+        if ((px >= 0 && py <= 0) || (px <= 0 && py >= 0)) inBlizzardAoE = true;
+    } else {
+        if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
+    }
+    let inThunderAoE = false;
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    switch(bossA_Gimmick.thunderPattern) {
+        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThunderAoE = true; break;
+        case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
+        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2*w)) inThunderAoE = true; break;
+        case 3: if ((rotY >= -2*w && rotY < -w) || (rotY >= 0 && rotY < w)) inThunderAoE = true; break;
+    }
+    return { inBlizzardAoE, inThunderAoE };
+}
+
+function checkSafety() {
+    if (bossA_Gimmick.judged) return;
+    bossA_Gimmick.judged = true;
+    const currentAoE = evaluateCurrentPosition();
+    if ((bossA_Gimmick.bottomEffect.includes('진실') ? currentAoE.inBlizzardAoE : !currentAoE.inBlizzardAoE) ||
+        (bossA_Gimmick.topEffect.includes('진실') ? currentAoE.inThunderAoE : !currentAoE.inThunderAoE)) {
+        triggerPlayerDeath("중앙 보스 장판 피격!");
+    }
+}
+
+function drawAoELayers(alpha1, alpha2) {
+    ctx.save();
+    ctx.fillStyle = `rgba(0, 180, 216, ${alpha1})`;
+    if (bossA_Gimmick.blizzardPattern === 0) {
+        ctx.fillRect(mapCenter.x, 0, 400, mapCenter.y); ctx.fillRect(0, mapCenter.y, mapCenter.x, 400);
+    } else {
+        ctx.fillRect(0, 0, mapCenter.x, mapCenter.y); ctx.fillRect(mapCenter.x, mapCenter.y, 400, 400);
+    }
+    ctx.fillStyle = `rgba(255, 105, 180, ${alpha2})`; ctx.translate(mapCenter.x, mapCenter.y);
+    ctx.rotate(bossA_Gimmick.thunderPattern >= 2 ? Math.PI/4 : -Math.PI/4);
+    const w = 175;
+    if (bossA_Gimmick.thunderPattern % 2 === 0) {
+        ctx.fillRect(-w, -mapRadius, w, mapRadius*2); ctx.fillRect(w, -mapRadius, w, mapRadius*2);
+    } else {
+        ctx.fillRect(-2*w, -mapRadius, w, mapRadius*2); ctx.fillRect(0, -mapRadius, w, mapRadius*2);
+    }
+    ctx.restore();
+}
+
+function drawThundergaAoELayer(pattern, alpha) {
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 105, 180, ${alpha})`; 
+    ctx.translate(mapCenter.x, mapCenter.y);
+    ctx.rotate(pattern >= 2 ? Math.PI/4 : -Math.PI/4);
+    const w = 175;
+    if (pattern % 2 === 0) {
+        ctx.fillRect(-w, -mapRadius, w, mapRadius*2); ctx.fillRect(w, -mapRadius, w, mapRadius*2);
+    } else {
+        ctx.fillRect(-2*w, -mapRadius, w, mapRadius*2); ctx.fillRect(0, -mapRadius, w, mapRadius*2);
+    }
+    ctx.restore();
+}
+
+function drawBlizzagaAoELayer(pattern, alpha) {
+    ctx.save();
+    ctx.fillStyle = `rgba(0, 180, 216, ${alpha})`;
+    if (pattern === 0) {
+        ctx.fillRect(mapCenter.x, 0, 400, mapCenter.y); ctx.fillRect(0, mapCenter.y, mapCenter.x, 400);
+    } else {
+        ctx.fillRect(0, 0, mapCenter.x, mapCenter.y); ctx.fillRect(mapCenter.x, mapCenter.y, 400, 400);
+    }
+    ctx.restore();
+}
+
+function drawWave3SplitAoE() {
+    if (!wave3BossB.showAoE) return;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mapCenter.x, mapCenter.y, mapRadius, 0, Math.PI * 2); ctx.clip();
+
+    const targetAngle = Math.atan2(mapCenter.y - wave3BossB.y, mapCenter.x - wave3BossB.x);
+    ctx.translate(wave3BossB.x, wave3BossB.y); ctx.rotate(targetAngle);
+
+    ctx.fillStyle = "rgba(255, 105, 180, 0.3)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
+    ctx.fillStyle = "rgba(0, 180, 216, 0.3)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    ctx.restore();
+}
+
+function drawCenterBossRings(bx, by) {
+    ctx.save();
+    const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+    
+    if (thunderga_Gimmick.isCasting) {
+        ctx.save(); ctx.translate(bx, by + 10); 
+        ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#bf55ec'; ctx.lineWidth = 2; ctx.stroke();
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let gaImg = thunderga_Gimmick.effect === '진실' ? imgTruth : imgFake;
+            ctx.drawImage(gaImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(gaImg, ringRadiusX - size/2, -size/2, size, size);
+        }
+        ctx.restore();
+    } else if (blizzaga_Gimmick.isCasting) {
+        ctx.save(); ctx.translate(bx, by + 10); 
+        ctx.strokeStyle = 'rgba(0, 180, 216, 0.4)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#00b4d8'; ctx.lineWidth = 2; ctx.stroke();
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let gaImg = blizzaga_Gimmick.effect === '진실' ? imgTruth : imgFake;
+            ctx.drawImage(gaImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(gaImg, ringRadiusX - size/2, -size/2, size, size);
+        }
+        ctx.restore();
+    } else {
+        ctx.save(); ctx.translate(bx, by - 25);
+        ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#bf55ec'; ctx.lineWidth = 2; ctx.stroke();
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let topImg = bossA_Gimmick.topEffect.includes('진실') ? imgTruth : imgFake;
+            ctx.drawImage(topImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(topImg, ringRadiusX - size/2, -size/2, size, size);
+        } else {
+            ctx.fillStyle = bossA_Gimmick.topEffect.includes('진실') ? '#00b4d8' : '#ff4444';
+            ctx.fillRect(-ringRadiusX - 5, -5, 10, 10); ctx.fillRect(ringRadiusX - 5, -5, 10, 10);
+        }
+        ctx.restore();
+
+        ctx.save(); ctx.translate(bx, by + 45);
+        ctx.strokeStyle = 'rgba(155, 93, 229, 0.3)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#a2d2ff'; ctx.lineWidth = 2; ctx.stroke();
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let bottomImg = bossA_Gimmick.bottomEffect.includes('진실') ? imgTruth : imgFake;
+            ctx.drawImage(bottomImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(bottomImg, ringRadiusX - size/2, -size/2, size, size);
+        } else {
+            ctx.fillStyle = bossA_Gimmick.bottomEffect.includes('진실') ? '#00b4d8' : '#ff4444';
+            ctx.fillRect(-ringRadiusX - 5, -5, 10, 10); ctx.fillRect(ringRadiusX - 5, -5, 10, 10);
+        }
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
+function drawFinalMemoryRings(bx, by) {
+    if (!finalMemoryState.showRings) return;
+    const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+
+    ctx.save(); ctx.translate(bx, by - 25);
+    ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#bf55ec'; ctx.lineWidth = 2; ctx.stroke();
+    if (imagesLoaded.truth && imagesLoaded.fake) {
+        let topImg = finalMemoryState.topTruth === '진실' ? imgTruth : imgFake;
+        ctx.drawImage(topImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(topImg, ringRadiusX - size/2, -size/2, size, size);
+    }
+    ctx.restore();
+
+    ctx.save(); ctx.translate(bx, by + 45);
+    ctx.strokeStyle = 'rgba(155, 93, 229, 0.3)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#a2d2ff'; ctx.lineWidth = 2; ctx.stroke();
+    if (imagesLoaded.truth && imagesLoaded.fake) {
+        let bottomImg = finalMemoryState.bottomTruth === '진실' ? imgTruth : imgFake;
+        ctx.drawImage(bottomImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(bottomImg, ringRadiusX - size/2, -size/2, size, size);
+    }
+    ctx.restore();
+}
+
+function drawFinalMemoryAoE() {
+    if (!finalMemoryState.isCasting) return;
+    drawThundergaAoELayer(finalMemoryState.thunderPattern, 0.15);
+    drawBlizzagaAoELayer(finalMemoryState.blizzardPattern, 0.15);
+}
+
+function drawVirtualTimerIndicator() {
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath(); ctx.arc(mapCenter.x, mapCenter.y, mapRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 5; ctx.stroke(); ctx.fillStyle = '#1a1a1a'; ctx.fill();
+
+    if (isGameStarted) {
+        if (bosses[0].isCasting) drawAoELayers(0.08, 0.12); 
+        else if (bossA_Gimmick.showAoE) drawAoELayers(0.35, 0.45); 
+        
+        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.12);
+        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.45);
+
+        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.12);
+        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.45);
+
+        drawFinalMemoryAoE();
+
+        subBossPlacedAoEs.forEach(aoe => {
+            if (aoe.showVisual) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(255, 69, 0, 0.45)'; 
+                ctx.strokeStyle = '#ff4500';
+                ctx.lineWidth = 3;
+                if (aoe.shape === "CIRCLE") {
+                    ctx.beginPath(); ctx.arc(aoe.x, aoe.y, 120, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                } else if (aoe.shape === "DONUT") {
+                    ctx.beginPath(); ctx.arc(aoe.x, aoe.y, 220, 0, Math.PI * 2);
+                    ctx.arc(aoe.x, aoe.y, 80, 0, Math.PI * 2, true); 
+                    ctx.fill(); ctx.stroke();
+                }
+                ctx.restore();
+            }
+        });
+
+        if (currentWave === 3) drawWave3SplitAoE();
+    }
+
+    explosionVisuals.forEach(vis => {
+        ctx.save(); ctx.beginPath(); ctx.arc(vis.x, vis.y, vis.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = vis.color ? vis.color : `rgba(0, 180, 216, ${vis.alpha})`;
+        ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+    });
+
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(`전투 진행 시간: ${elapsedTimeDisplay}초`, 30, 50);
+
+    if (isGameStarted && !isGameOver) {
+        ctx.font = 'bold 16px sans-serif'; ctx.fillStyle = '#4cc9f0';
+        ctx.fillText(`현재 단계: ${currentWave}회차 디버프 처리 중`, 30, 85);
+        
+        if (showDebugText) {
+            let displayOffset = 115;
+            
+            let activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+            let envTime = activeEnv ? activeEnv.timeLeft : 0;
+
+            if (activeEnv) {
+                ctx.font = '13px sans-serif'; ctx.fillStyle = '#00b4d8';
+                ctx.fillText(`(쉐어/산개 + 가속도 만료까지: ${envTime}초)`, 30, displayOffset);
+                displayOffset += 25;
+            }
+
+            let pendingEyes = backgroundEyes.filter(e => !e.processed);
+            pendingEyes.forEach((pendingEye, idx) => {
+                let eyeTimeLeft = Math.max(pendingEye.initialDuration - Math.floor((Date.now() - pendingEye.assignTime)/1000), 0);
+                let eyeAction = pendingEye.rule === "진실" ? "안보기" : "보기";
+                ctx.font = '13px sans-serif'; ctx.fillStyle = '#bf55ec';
+                ctx.fillText(`(마안${pendingEye.wave} [${eyeAction}] 발동까지: ${eyeTimeLeft}초)`, 30, displayOffset);
+                displayOffset += 25;
+            });
+
+            if (thunderga_Gimmick.isCasting) {
+                ctx.font = '13px sans-serif'; ctx.fillStyle = '#ffd700';
+                ctx.fillText(`(중앙 보스 썬더가 캐스팅 중... [${thunderga_Gimmick.effect}])`, 30, displayOffset);
+                displayOffset += 25;
+            }
+        }
+
+        ctx.fillStyle = showDebugText ? '#4cc9f0' : '#777'; 
+        ctx.fillRect(toggleButton.x, toggleButton.y, toggleButton.width, toggleButton.height);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(showDebugText ? '가이드 ON' : '가이드 OFF', toggleButton.x + toggleButton.width/2, toggleButton.y + 22);
+
+        ctx.fillStyle = '#ff4444'; ctx.fillRect(resetButton.x, resetButton.y, resetButton.width, resetButton.height);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(resetButton.text, resetButton.x + resetButton.width/2, resetButton.y + 22);
+    }
+
+    if (isGameStarted) {
+        let visibleDebuffs = activeDebuffs.filter(d => !d.processed);
+        if (visibleDebuffs.length > 0) {
+            const startX = 580; 
+            const startYRow1 = 410; 
+            const startYRow2 = 475; 
+            const iconSize = 28; 
+            const gap = 36;          
+
+            let row1Count = 0;
+            let row2Count = 0;
+
+            visibleDebuffs.forEach((debuff) => {
+                let isRow2 = (debuff.row === 2);
+                let currentX = startX + ((isRow2 ? row2Count : row1Count) * gap);
+                let currentY = isRow2 ? startYRow2 : startYRow1;
+
+                if (isRow2) row2Count++; else row1Count++;
+
+                if (imagesLoaded[debuff.loadKey]) {
+                    ctx.drawImage(debuff.img, currentX, currentY, iconSize, iconSize);
+                } else {
+                    ctx.fillStyle = debuff.color; ctx.fillRect(currentX, currentY, iconSize, iconSize);
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(debuff.type, currentX + iconSize/2, currentY + 18);
+                }
+
+                if (showDebugText) {
+                    ctx.save(); ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                    let textResult = debuff.actionText;
+
+                    if (currentWave === 3 && wave3TimelineState === "POPUP" && textResult === "CALC" && activeDebuffs.length >= 2) {
+                        let colorDebuff = activeDebuffs.find(d => d.type === "DEAD_SCAR" || d.type === "LIVE_SCAR");
+                        let hitDebuff = activeDebuffs.find(d => d.type === "ALAG" || d.type === "TRANSCEND");
+                        if (colorDebuff && hitDebuff) {
+                            let isBlue = colorDebuff.type === "DEAD_SCAR";
+                            let isAlag = hitDebuff.type === "ALAG";
+                            if (wave3BossB.currentEffect === "거짓") isAlag = !isAlag;
+                            textResult = isAlag ? (isBlue ? "분홍맞기" : "파란맞기") : (isBlue ? "파란맞기" : "분홍맞기");
+                        }
+                    }
+
+                    let krWord = "";
+                    if (textResult === "SHARE") { krWord = "쉐어"; ctx.fillStyle = '#4ec9b0'; }
+                    else if (textResult === "SPREAD") { krWord = "산개"; ctx.fillStyle = '#f77f00'; }
+                    else if (textResult === "LOOK") { krWord = "보기"; ctx.fillStyle = '#a2d2ff'; }
+                    else if (textResult === "HIDE") { krWord = "안보기"; ctx.fillStyle = '#bf55ec'; }
+                    else if (textResult === "MOVE") { krWord = "움직이기"; ctx.fillStyle = '#ffcc00'; }
+                    else if (textResult === "STOP") { krWord = "멈추기"; ctx.fillStyle = '#ff4444'; }
+                    else if (textResult === "물압축") { krWord = "물압축"; ctx.fillStyle = '#00b4d8'; }
+                    else if (textResult === "갈래번개") { krWord = "갈래번개"; ctx.fillStyle = '#bf55ec'; }
+                    else if (textResult === "해일") { krWord = `해일[${debuff.rule}]`; ctx.fillStyle = '#00b4d8'; } 
+                    else if (textResult === "불꽃") { krWord = `불꽃[${debuff.rule}]`; ctx.fillStyle = '#ff4500'; } 
+                    else if (textResult === "파란맞기") { krWord = "파란 장판 피격"; ctx.fillStyle = '#00b4d8'; }
+                    else if (textResult === "분홍맞기") { krWord = "분홍 장판 피격"; ctx.fillStyle = '#ff69b4'; }
+                    else if (textResult === "CALC") { krWord = "보스 분석 중..."; ctx.fillStyle = '#bbb'; }
+
+                    ctx.fillText(krWord, currentX + iconSize/2, currentY - 10); ctx.restore();
+                }
+
+                ctx.save(); ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeText(debuff.timeLeft, currentX + iconSize/2, currentY + iconSize + 15);
+                ctx.fillStyle = '#ffffff'; ctx.fillText(debuff.timeLeft, currentX + iconSize/2, currentY + iconSize + 15); ctx.restore();
+            });
+        }
+    }
+
+    if (!isGameStarted) {
+        ctx.fillStyle = '#4cc9f0'; ctx.fillRect(startButton.x, startButton.y, startButton.width, startButton.height);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(startButton.text, startButton.x + startButton.width/2, startButton.y + 25);
+    }
+    if (isGameOver) {
+        ctx.fillStyle = '#ff3333'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText("사망 원인: " + deathReason, mapCenter.x, mapCenter.y - 80);
+
+        ctx.fillStyle = '#f77f00'; ctx.fillRect(retryButton.x, retryButton.y, retryButton.width, retryButton.height);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(retryButton.text, retryButton.x + retryButton.width/2, retryButton.y + 30);
+    }
+
+    bosses.forEach((boss, index) => {
+        if (currentWave === 3 && isSubBossesVanished && index > 0) return;
+
+        let isInterfaceActive = boss.isCasting || (index === 0 && (thunderga_Gimmick.isCasting || blizzaga_Gimmick.isCasting || finalMemoryState.showRings)) || (boss.castCompleteTime && (Date.now() - boss.castCompleteTime < 2000));
+        ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2);
+        ctx.fillStyle = boss.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+        if (isInterfaceActive) {
+            if (index === 0) {
+                if (finalMemoryState.showRings) drawFinalMemoryRings(boss.x, boss.y);
+                else drawCenterBossRings(boss.x, boss.y);
+            } else {
+                ctx.save(); ctx.translate(boss.x, boss.y);
+                const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+                ctx.strokeStyle = 'rgba(0, 180, 216, 0.35)'; ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#00f5d4'; ctx.lineWidth = 2; ctx.stroke();
+                if (imagesLoaded.truth && imagesLoaded.fake) {
+                    let subImg = boss.currentEffect === '진실' ? imgTruth : imgFake;
+                    ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
+                } else {
+                    ctx.fillStyle = boss.currentEffect === '진실' ? '#00b4d8' : '#ff4444';
+                    ctx.fillRect(-ringRadiusX - 5, -5, 10, 10); ctx.fillRect(ringRadiusX - 5, -5, 10, 10);
+                }
+                ctx.restore();
+            }
+            
+            const barW = 100; const barH = 10; const barX = boss.x - barW / 2; const barY = boss.y - bossRadius - 25;
+            
+            if (index === 1 && boss.isCasting) {
+                ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(boss.castName, boss.x, barY - 5); ctx.restore();
+            }
+
+            ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
+            
+            if (index === 0 && thunderga_Gimmick.isCasting) {
+                ctx.fillStyle = '#bf55ec'; 
+                ctx.fillRect(barX, barY, barW * thunderga_Gimmick.progress, barH);
+            } else if (index === 0 && blizzaga_Gimmick.isCasting) {
+                ctx.fillStyle = '#00b4d8'; 
+                ctx.fillRect(barX, barY, barW * blizzaga_Gimmick.progress, barH);
+            } else if (index === 0 && finalMemoryState.isCasting) {
+                let progress = Math.min((Date.now() - finalMemoryState.castStartTime) / 3000, 1);
+                ctx.fillStyle = '#f77f00'; 
+                ctx.fillRect(barX, barY, barW * progress, barH);
+            } else {
+                ctx.fillStyle = boss.progress >= 1 ? '#ff3333' : '#ffaa00'; ctx.fillRect(barX, barY, barW * boss.progress, barH);
+            }
+            ctx.strokeStyle = '#888'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, barH);
+        }
+    });
+
+    if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
+        ctx.beginPath(); ctx.arc(wave3BossB.x, wave3BossB.y, bossRadius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff4500'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+
+        ctx.save(); ctx.translate(wave3BossB.x, wave3BossB.y);
+        const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+        ctx.strokeStyle = 'rgba(255, 69, 0, 0.4)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let subImg = wave3BossB.currentEffect === '진실' ? imgTruth : imgFake;
+            ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
+        }
+        ctx.restore();
+
+        const barW = 100; const barH = 10; const barX = wave3BossB.x - barW / 2; const barY = wave3BossB.y - bossRadius - 25;
+        ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = '#ffaa00'; ctx.fillRect(barX, barY, barW * wave3BossB.progress, barH);
+        ctx.strokeStyle = '#fff'; ctx.strokeRect(barX, barY, barW, barH);
+    }
+
+    if (!player.isDead) {
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(player.x + player.lastDx * 20, player.y + player.lastDy * 20);
+        ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.stroke();
+    } else {
+        ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 4; ctx.beginPath();
+        ctx.moveTo(player.x - 15, player.y - 15); ctx.lineTo(player.x + 15, player.y + 15);
+        ctx.moveTo(player.x + 15, player.y - 15); ctx.lineTo(player.x - 15, player.y + 15);
+        ctx.stroke(); 
+    }
+
+    if (isPaused) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2);
+    }
+}
+
+function update() {
+    let dx = 0; let dy = 0;
+    if (!player.isDead) {
+        if (keys['w'] || keys['arrowup']) { player.y -= player.speed; dy = -1; }
+        if (keys['s'] || keys['arrowdown']) { player.y += player.speed; dy = 1; }
+        if (keys['a'] || keys['arrowleft']) { player.x -= player.speed; dx = -1; }
+        if (keys['d'] || keys['arrowright']) { player.x += player.speed; dx = 1; }
+        if (dx !== 0 || dy !== 0) { player.lastDx = dx; player.lastDy = dy; }
+    }
+    const distance = Math.hypot(player.x - mapCenter.x, player.y - mapCenter.y);
+    if (distance + player.radius > mapRadius) {
+        const angle = Math.atan2(player.y - mapCenter.y, player.x - mapCenter.x);
+        player.x = mapCenter.x + Math.cos(angle) * (mapRadius - player.radius);
+        player.y = mapCenter.y + Math.sin(angle) * (mapRadius - player.radius);
+    }
+    explosionVisuals.forEach(vis => { vis.radius += 2.5; vis.alpha -= 0.02; });
+    explosionVisuals = explosionVisuals.filter(vis => vis.alpha > 0);
+
+    if (!isGameStarted || isGameOver) return;
+    const now = Date.now();
+    elapsedTimeDisplay = ((now - globalStartTime) / 1000).toFixed(1);
+
+    activeDebuffs.forEach(debuff => {
+        debuff.timeLeft = Math.max(debuff.initialDuration - Math.floor((now - debuff.assignTime) / 1000), 0);
+        if (debuff.timeLeft === 0 && !debuff.processed) processDebuffTrigger(debuff);
+    });
+
+    drawVirtualTimerIndicator();
+
+    subBossPlacedAoEs.forEach(aoe => {
+        if (now >= aoe.detonationTime && !aoe.judged) {
+            aoe.judged = true;
+            aoe.showVisual = true;
+            aoe.visualEndTime = now + 1500; 
+            evaluateSubBossAoESafety(aoe);
+        }
+    });
+    subBossPlacedAoEs = subBossPlacedAoEs.filter(aoe => !aoe.visualEndTime || now < aoe.visualEndTime);
+
+    if (thunderga_Gimmick.isCasting) {
+        thunderga_Gimmick.progress = Math.min((now - thunderga_Gimmick.startTime) / thunderga_Gimmick.duration, 1);
+        if (thunderga_Gimmick.progress >= 1) {
+            thunderga_Gimmick.isCasting = false;
+            thunderga_Gimmick.showAoE = true;
+            thunderga_Gimmick.aoeStartTime = now;
+            checkThundergaSafety();
+        }
+    }
+    if (thunderga_Gimmick.showAoE && now - thunderga_Gimmick.aoeStartTime > 1500) {
+        thunderga_Gimmick.showAoE = false;
+    }
+
+    if (blizzaga_Gimmick.isCasting) {
+        blizzaga_Gimmick.progress = Math.min((now - blizzaga_Gimmick.startTime) / blizzaga_Gimmick.duration, 1);
+        if (blizzaga_Gimmick.progress >= 1) {
+            blizzaga_Gimmick.isCasting = false;
+            blizzaga_Gimmick.showAoE = true;
+            blizzaga_Gimmick.aoeStartTime = now;
+            checkBlizzagaSafety();
+        }
+    }
+    if (blizzaga_Gimmick.showAoE && now - blizzaga_Gimmick.aoeStartTime > 1500) {
+        blizzaga_Gimmick.showAoE = false;
+    }
+
+    if (finalMemoryState.showRings && now - finalMemoryState.ringStartTime > 5000) {
+        finalMemoryState.showRings = false;
+    }
+
+    if (currentWave === 3) {
+        if (wave3TimelineState === "CAST_DONE") {
+            if (now - wave3TimerAnchor >= 2000) {
+                wave3TimelineState = "VANISHED";
+                isSubBossesVanished = true; 
+                wave3TimerAnchor = now;     
+            }
+        } 
+        else if (wave3TimelineState === "VANISHED") {
+            if (now - wave3TimerAnchor >= 2000) {
+                wave3TimelineState = "POPUP";
+                const random8Index = Math.floor(Math.random() * 8);
+                const randomAngle = (random8Index * Math.PI) / 4;
+                const spawnRadius = mapRadius - 30;
+                let bossTruthRule = effectTypes[Math.floor(Math.random() * 2)];
+
+                wave3BossB = {
+                    x: mapCenter.x + Math.cos(randomAngle) * spawnRadius,
+                    y: mapCenter.y + Math.sin(randomAngle) * spawnRadius,
+                    angle: randomAngle,
+                    isCasting: true,
+                    startTime: now,
+                    duration: 5000, 
+                    progress: 0,
+                    showAoE: true,
+                    currentEffect: bossTruthRule 
+                };
+            }
+        }
+        else if (wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
+            wave3BossB.progress = Math.min((now - wave3BossB.startTime) / wave3BossB.duration, 1);
+            if (wave3BossB.progress >= 1) {
+                wave3BossB.isCasting = false;
+                checkWave3SplitSafety(); 
+            }
+        }
+        
+        if (isSubBossesVanished && !wave3BossB.isCasting && !player.isDead) {
+            let elapsedSec = (now - globalStartTime) / 1000;
+            finalPhaseTimeline.forEach(evt => {
+                if (!evt.triggered && elapsedSec >= evt.t) {
+                    evt.triggered = true;
+                    if (evt.t === 51) executeEnvironmentCheck(51);
+                    else if (evt.t === 53) {
+                        thunderga_Gimmick.isCasting = true;
+                        thunderga_Gimmick.startTime = Date.now();
+                        thunderga_Gimmick.progress = 0;
+                        thunderga_Gimmick.effect = effectTypes[Math.floor(Math.random() * 2)]; 
+                        thunderga_Gimmick.thunderPattern = Math.floor(Math.random() * 4); 
+                        thunderga_Gimmick.judged = false;
+                        thunderga_Gimmick.showAoE = false;
+                        pastThundergaTruth = thunderga_Gimmick.effect;
+                    }
+                    else if (evt.t === 57) {
+                        let targetEye = backgroundEyes.find(e => e.wave === 1 && !e.processed);
+                        if (targetEye) executeSingleEyeCheck(targetEye);
+                    }
+                    else if (evt.t === 70) {
+                        blizzaga_Gimmick.isCasting = true;
+                        blizzaga_Gimmick.startTime = Date.now();
+                        blizzaga_Gimmick.progress = 0;
+                        blizzaga_Gimmick.effect = effectTypes[Math.floor(Math.random() * 2)]; 
+                        blizzaga_Gimmick.blizzardPattern = Math.floor(Math.random() * 2); 
+                        blizzaga_Gimmick.judged = false;
+                        blizzaga_Gimmick.showAoE = false;
+                        pastBlizzagaTruth = blizzaga_Gimmick.effect;
+                    }
+                    else if (evt.t === 74) executeEnvironmentCheck(74);
+                    else if (evt.t === 79) {
+                        let targetEye = backgroundEyes.find(e => e.wave === 2 && !e.processed);
+                        if (targetEye) executeSingleEyeCheck(targetEye);
+
+                        finalMemoryState.showRings = true;
+                        finalMemoryState.ringStartTime = Date.now();
+                        finalMemoryState.topTruth = effectTypes[Math.floor(Math.random() * 2)];
+                        finalMemoryState.bottomTruth = effectTypes[Math.floor(Math.random() * 2)];
+                    }
+                    else if (evt.t === 84) {
+                        finalMemoryState.isCasting = true;
+                        finalMemoryState.castStartTime = Date.now();
+                        finalMemoryState.thunderPattern = Math.floor(Math.random() * 4);
+                        finalMemoryState.blizzardPattern = Math.floor(Math.random() * 2);
+                    }
+                    else if (evt.t === 87) {
+                        checkFinalMemorySafety();
+                        finalMemoryState.isCasting = false;
+                    }
+                }
+            });
+        }
+    }
+
+    bosses.forEach((boss, index) => {
+        if (boss.isCasting) {
+            boss.progress = Math.min((now - boss.startTime) / boss.duration, 1);
+            if (boss.progress >= 1) {
+                boss.isCasting = false; boss.castCompleteTime = now;
+                if (index === 0) {
+                    bossA_Gimmick.showAoE = true; bossA_Gimmick.aoeStartTime = now; checkSafety(); 
+                    if (!player.isDead && currentWave < 3) { 
+                        bosses[1].startTime = now; bosses[1].progress = 0; bosses[1].isCasting = true; bosses[1].castCompleteTime = null; 
+                    }
+                }
+                if (index === 1 && !player.isDead) {
+                    assign11BossDebuff(currentWave); 
+                    currentWave++; randomizeGimmick();
+                    bosses[0].startTime = now; bosses[0].progress = 0; bosses[0].isCasting = true; bosses[0].castCompleteTime = null;
+                    bosses[2].startTime = now; bosses[2].progress = 0; bosses[2].isCasting = true; bosses[2].castCompleteTime = null;
+                }
+                if (index === 2 && !player.isDead) {
+                    assignGimmickDebuffs(currentWave);
+                }
+            }
+        }
+    });
+    if (bossA_Gimmick.showAoE && now - bossA_Gimmick.aoeStartTime > 2000) bossA_Gimmick.showAoE = false;
+}
+
+function gameLoop() { if (!isPaused) update(); draw(); requestAnimationFrame(gameLoop); }
+gameLoop();
+</script>
+</body>
+</html>
