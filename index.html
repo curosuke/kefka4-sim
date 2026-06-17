@@ -524,6 +524,8 @@ let virtualEnvTimer = { timeLeft: 0, initialDuration: 0, processed: true };
 let backgroundEyes = [];
 let explosionVisuals = [];
 let showDebugText = true;
+let partyFormationSession = null;
+let partyGhosts = [];
 
 let finalPhaseTimeline = [
     { t: 51, triggered: false },
@@ -714,21 +716,92 @@ function getActiveFormationMode() {
     return null;
 }
 
-function drawPartyFormation(slots) {
-    ctx.save();
+function getFormationSelfSlotIndex(slots) {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
     slots.forEach((slot, index) => {
-        ctx.fillStyle = `${slot.color}55`;
-        ctx.strokeStyle = `${slot.color}cc`;
+        const distance = Math.hypot(player.x - slot.x, player.y - slot.y);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+        }
+    });
+    return bestIndex;
+}
+
+function rebuildPartyGhosts(mode) {
+    if (!mode) {
+        partyFormationSession = null;
+        partyGhosts = [];
+        return;
+    }
+
+    const slots = buildPartyFormation(mode);
+
+    if (!partyFormationSession || partyFormationSession.mode !== mode) {
+        const selfSlotIndex = getFormationSelfSlotIndex(slots);
+        const ghostSlots = slots.filter((_, index) => index !== selfSlotIndex);
+        partyFormationSession = { mode, selfSlotIndex };
+        partyGhosts = ghostSlots.map((slot, index) => ({
+            id: `ghost-${index}`,
+            label: slot.label,
+            color: slot.color,
+            x: mapCenter.x,
+            y: mapCenter.y,
+            targetX: slot.x,
+            targetY: slot.y,
+            alpha: 0,
+            readyAt: Date.now() + index * 90
+        }));
+        return;
+    }
+
+    const ghostSlots = slots.filter((_, index) => index !== partyFormationSession.selfSlotIndex);
+    ghostSlots.forEach((slot, index) => {
+        const ghost = partyGhosts[index];
+        ghost.label = slot.label;
+        ghost.color = slot.color;
+        ghost.targetX = slot.x;
+        ghost.targetY = slot.y;
+        ghost.alpha = Math.min(ghost.alpha + 0.05, 0.85);
+    });
+}
+
+function updatePartyGhosts(mode) {
+    rebuildPartyGhosts(mode);
+    if (!mode || partyGhosts.length === 0) return;
+
+    partyGhosts.forEach((ghost, index) => {
+        const delayReady = Date.now() >= ghost.readyAt;
+        const speedFactor = delayReady ? 0.14 : 0.08;
+        ghost.x += (ghost.targetX - ghost.x) * speedFactor;
+        ghost.y += (ghost.targetY - ghost.y) * speedFactor;
+        ghost.alpha = Math.min(ghost.alpha + 0.04, 0.9);
+    });
+}
+
+function drawPartyGhosts() {
+    if (partyGhosts.length === 0) return;
+    ctx.save();
+    partyGhosts.forEach((ghost, index) => {
+        const pulse = 1 + Math.sin(Date.now() / 220 + index) * 0.04;
+        ctx.globalAlpha = ghost.alpha;
+        ctx.fillStyle = ghost.color;
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(slot.x, slot.y, 11, 0, Math.PI * 2);
+        ctx.arc(ghost.x, ghost.y, 11 * pulse, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = ghost.color;
+        ctx.beginPath();
+        ctx.arc(ghost.x, ghost.y, 15 * pulse, 0, Math.PI * 2);
         ctx.stroke();
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(index + 1), slot.x, slot.y + 0.5);
+        ctx.fillText(ghost.label, ghost.x, ghost.y + 0.5);
     });
     ctx.restore();
 }
@@ -1335,7 +1408,7 @@ function draw() {
 
     const formationMode = getActiveFormationMode();
     if (formationMode) {
-        drawPartyFormation(buildPartyFormation(formationMode));
+        drawPartyGhosts();
     }
 
     explosionVisuals.forEach(vis => {
@@ -1626,6 +1699,8 @@ function update() {
     if (player.moveTarget) {
         player.moveTarget = clampPointToArena(player.moveTarget.x, player.moveTarget.y);
     }
+    const formationMode = getActiveFormationMode();
+    updatePartyGhosts(formationMode);
     explosionVisuals.forEach(vis => { vis.radius += 2.5; vis.alpha -= 0.02; });
     explosionVisuals = explosionVisuals.filter(vis => vis.alpha > 0);
 
