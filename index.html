@@ -125,6 +125,7 @@ const imgFlame = new Image(); imgFlame.src = "불.png"; imgFlame.onload = () => 
 
 let isGameStarted = false;
 let isGameOver = false; 
+let isGameCleared = false;
 let deathReason = "";
 let globalStartTime = null;
 let waveStartTime = null; 
@@ -142,7 +143,7 @@ Date.now = function() {
 
 window.addEventListener('keydown', e => {
     if (e.key.toLowerCase() === 'p') {
-        if (!isGameStarted || isGameOver) return;
+        if (!isGameStarted || isGameOver || isGameCleared) return;
         isPaused = !isPaused;
         if (isPaused) {
             pauseStartTime = originalDateNow.call(Date);
@@ -175,7 +176,8 @@ let finalPhaseTimeline = [
     { t: 74, triggered: false },
     { t: 79, triggered: false },
     { t: 84, triggered: false },
-    { t: 87, triggered: false }
+    { t: 87, triggered: false },
+    { t: 90, triggered: false }
 ];
 
 let subBossPlacedAoEs = [];
@@ -210,7 +212,7 @@ let blizzaga_Gimmick = {
     judged: false
 };
 
-const startButton = { x: 340, y: 20, width: 120, height: 40, text: '시작하기' };
+const startButton = { x: 340, y: 380, width: 120, height: 40, text: '시작하기' };
 const retryButton = { x: 320, y: 380, width: 160, height: 50, text: '다시 도전하기' }; 
 const toggleButton = { x: 30, y: 695, width: 120, height: 35, text: '가이드 ON' }; 
 const resetButton = { x: 30, y: 740, width: 120, height: 35, text: '전투 리셋' };
@@ -521,7 +523,7 @@ function processDebuffTrigger(debuff) {
 }
 
 function resetGame() {
-    isGameStarted = true; isGameOver = false; deathReason = ""; globalStartTime = Date.now(); waveStartTime = Date.now();
+    isGameStarted = true; isGameOver = false; isGameCleared = false; deathReason = ""; globalStartTime = Date.now(); waveStartTime = Date.now();
     player.x = 400; player.y = 550; player.isDead = false; player.lastDx = 0; player.lastDy = -1;
     currentWave = 1; activeDebuffs = []; explosionVisuals = []; firstWaveGroup = ""; firstWaveDurationType = "";
     backgroundEyes = [];
@@ -562,7 +564,7 @@ canvas.addEventListener('click', function(e) {
         }
         return;
     }
-    if (isGameStarted && !isGameOver) {
+    if (isGameStarted && !isGameOver && !isGameCleared) {
         if (mouseX >= toggleButton.x && mouseX <= toggleButton.x + toggleButton.width &&
             mouseY >= toggleButton.y && mouseY <= toggleButton.y + toggleButton.height) {
             showDebugText = !showDebugText;
@@ -572,7 +574,7 @@ canvas.addEventListener('click', function(e) {
             resetGame();
         }
     }
-    if (isGameOver) {
+    if (isGameOver || isGameCleared) {
         if (mouseX >= retryButton.x && mouseX <= retryButton.x + retryButton.width &&
             mouseY >= retryButton.y && mouseY <= retryButton.y + retryButton.height) {
             resetGame();
@@ -756,6 +758,20 @@ function drawVirtualTimerIndicator() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!isGameStarted && !isGameOver) {
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText("4페이즈 연습 시뮬레이션", canvas.width / 2, canvas.height / 2 - 80);
+        
+        ctx.fillStyle = '#4cc9f0'; ctx.fillRect(startButton.x, startButton.y, startButton.width, startButton.height);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(startButton.text, startButton.x + startButton.width/2, startButton.y + 25);
+
+        ctx.font = '16px sans-serif'; ctx.fillStyle = '#aaa';
+        ctx.fillText("게임 도중 'P' 키를 누르면 언제든 일시정지 할 수 있습니다.", canvas.width / 2, canvas.height / 2 + 100);
+        return;
+    }
+
     ctx.beginPath(); ctx.arc(mapCenter.x, mapCenter.y, mapRadius, 0, Math.PI * 2);
     ctx.strokeStyle = '#555'; ctx.lineWidth = 5; ctx.stroke(); ctx.fillStyle = '#1a1a1a'; ctx.fill();
 
@@ -797,15 +813,101 @@ function draw() {
         ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
     });
 
+    bosses.forEach((boss, index) => {
+        if (currentWave === 3 && isSubBossesVanished && index > 0) return;
+
+        let isInterfaceActive = boss.isCasting || (index === 0 && (thunderga_Gimmick.isCasting || blizzaga_Gimmick.isCasting || finalMemoryState.showRings)) || (boss.castCompleteTime && (Date.now() - boss.castCompleteTime < 2000));
+        ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2);
+        ctx.fillStyle = boss.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+        if (isInterfaceActive) {
+            if (index === 0) {
+                if (finalMemoryState.showRings) drawFinalMemoryRings(boss.x, boss.y);
+                else drawCenterBossRings(boss.x, boss.y);
+            } else {
+                ctx.save(); ctx.translate(boss.x, boss.y);
+                const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+                ctx.strokeStyle = 'rgba(0, 180, 216, 0.35)'; ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+                ctx.strokeStyle = '#00f5d4'; ctx.lineWidth = 2; ctx.stroke();
+                if (imagesLoaded.truth && imagesLoaded.fake) {
+                    let subImg = boss.currentEffect === '진실' ? imgTruth : imgFake;
+                    ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
+                } else {
+                    ctx.fillStyle = boss.currentEffect === '진실' ? '#00b4d8' : '#ff4444';
+                    ctx.fillRect(-ringRadiusX - 5, -5, 10, 10); ctx.fillRect(ringRadiusX - 5, -5, 10, 10);
+                }
+                ctx.restore();
+            }
+            
+            const barW = 100; const barH = 10; const barX = boss.x - barW / 2; const barY = boss.y - bossRadius - 25;
+            
+            if (index === 1 && boss.isCasting) {
+                ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(boss.castName, boss.x, barY - 5); ctx.restore();
+            }
+
+            ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
+            
+            if (index === 0 && thunderga_Gimmick.isCasting) {
+                ctx.fillStyle = '#bf55ec'; 
+                ctx.fillRect(barX, barY, barW * thunderga_Gimmick.progress, barH);
+            } else if (index === 0 && blizzaga_Gimmick.isCasting) {
+                ctx.fillStyle = '#00b4d8'; 
+                ctx.fillRect(barX, barY, barW * blizzaga_Gimmick.progress, barH);
+            } else if (index === 0 && finalMemoryState.isCasting) {
+                let progress = Math.min((Date.now() - finalMemoryState.castStartTime) / 3000, 1);
+                ctx.fillStyle = '#f77f00'; 
+                ctx.fillRect(barX, barY, barW * progress, barH);
+            } else {
+                ctx.fillStyle = boss.progress >= 1 ? '#ff3333' : '#ffaa00'; ctx.fillRect(barX, barY, barW * boss.progress, barH);
+            }
+            ctx.strokeStyle = '#888'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, barH);
+        }
+    });
+
+    if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
+        ctx.beginPath(); ctx.arc(wave3BossB.x, wave3BossB.y, bossRadius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff4500'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+
+        ctx.save(); ctx.translate(wave3BossB.x, wave3BossB.y);
+        const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
+        ctx.strokeStyle = 'rgba(255, 69, 0, 0.4)'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+        if (imagesLoaded.truth && imagesLoaded.fake) {
+            let subImg = wave3BossB.currentEffect === '진실' ? imgTruth : imgFake;
+            ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
+        }
+        ctx.restore();
+
+        const barW = 100; const barH = 10; const barX = wave3BossB.x - barW / 2; const barY = wave3BossB.y - bossRadius - 25;
+        ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = '#ffaa00'; ctx.fillRect(barX, barY, barW * wave3BossB.progress, barH);
+        ctx.strokeStyle = '#fff'; ctx.strokeRect(barX, barY, barW, barH);
+    }
+
+    if (!player.isDead) {
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(player.x + player.lastDx * 20, player.y + player.lastDy * 20);
+        ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.stroke();
+    } else {
+        ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 4; ctx.beginPath();
+        ctx.moveTo(player.x - 15, player.y - 15); ctx.lineTo(player.x + 15, player.y + 15);
+        ctx.moveTo(player.x + 15, player.y - 15); ctx.lineTo(player.x - 15, player.y + 15);
+        ctx.stroke(); 
+    }
+
     ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'left';
     ctx.fillText(`전투 진행 시간: ${elapsedTimeDisplay}초`, 30, 50);
 
-    if (isGameStarted && !isGameOver) {
-        ctx.font = 'bold 16px sans-serif'; ctx.fillStyle = '#4cc9f0';
-        ctx.fillText(`현재 단계: ${currentWave}회차 디버프 처리 중`, 30, 85);
+    if (isGameStarted && !isGameOver && !isGameCleared) {
+        
         
         if (showDebugText) {
-            let displayOffset = 115;
+            let displayOffset = 80;
             
             let activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
             let envTime = activeEnv ? activeEnv.timeLeft : 0;
@@ -909,106 +1011,22 @@ function draw() {
         }
     }
 
-    if (!isGameStarted) {
-        ctx.fillStyle = '#4cc9f0'; ctx.fillRect(startButton.x, startButton.y, startButton.width, startButton.height);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText(startButton.text, startButton.x + startButton.width/2, startButton.y + 25);
-    }
-    if (isGameOver) {
-        ctx.fillStyle = '#ff3333'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText("사망 원인: " + deathReason, mapCenter.x, mapCenter.y - 80);
+
+    if (isGameOver || isGameCleared) {
+        if (isGameOver) {
+            ctx.fillStyle = '#ff3333'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText("사망 원인: " + deathReason, mapCenter.x, mapCenter.y - 80);
+        } else {
+            ctx.fillStyle = '#4ec9b0'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText("페이즈 종료 (Phase Clear!)", mapCenter.x, mapCenter.y - 80);
+        }
 
         ctx.fillStyle = '#f77f00'; ctx.fillRect(retryButton.x, retryButton.y, retryButton.width, retryButton.height);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-        ctx.fillText(retryButton.text, retryButton.x + retryButton.width/2, retryButton.y + 30);
+        ctx.fillText(isGameOver ? retryButton.text : "다시 도전하기", retryButton.x + retryButton.width/2, retryButton.y + 30);
     }
 
-    bosses.forEach((boss, index) => {
-        if (currentWave === 3 && isSubBossesVanished && index > 0) return;
 
-        let isInterfaceActive = boss.isCasting || (index === 0 && (thunderga_Gimmick.isCasting || blizzaga_Gimmick.isCasting || finalMemoryState.showRings)) || (boss.castCompleteTime && (Date.now() - boss.castCompleteTime < 2000));
-        ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2);
-        ctx.fillStyle = boss.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-        if (isInterfaceActive) {
-            if (index === 0) {
-                if (finalMemoryState.showRings) drawFinalMemoryRings(boss.x, boss.y);
-                else drawCenterBossRings(boss.x, boss.y);
-            } else {
-                ctx.save(); ctx.translate(boss.x, boss.y);
-                const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
-                ctx.strokeStyle = 'rgba(0, 180, 216, 0.35)'; ctx.lineWidth = 6;
-                ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
-                ctx.strokeStyle = '#00f5d4'; ctx.lineWidth = 2; ctx.stroke();
-                if (imagesLoaded.truth && imagesLoaded.fake) {
-                    let subImg = boss.currentEffect === '진실' ? imgTruth : imgFake;
-                    ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
-                } else {
-                    ctx.fillStyle = boss.currentEffect === '진실' ? '#00b4d8' : '#ff4444';
-                    ctx.fillRect(-ringRadiusX - 5, -5, 10, 10); ctx.fillRect(ringRadiusX - 5, -5, 10, 10);
-                }
-                ctx.restore();
-            }
-            
-            const barW = 100; const barH = 10; const barX = boss.x - barW / 2; const barY = boss.y - bossRadius - 25;
-            
-            if (index === 1 && boss.isCasting) {
-                ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText(boss.castName, boss.x, barY - 5); ctx.restore();
-            }
-
-            ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
-            
-            if (index === 0 && thunderga_Gimmick.isCasting) {
-                ctx.fillStyle = '#bf55ec'; 
-                ctx.fillRect(barX, barY, barW * thunderga_Gimmick.progress, barH);
-            } else if (index === 0 && blizzaga_Gimmick.isCasting) {
-                ctx.fillStyle = '#00b4d8'; 
-                ctx.fillRect(barX, barY, barW * blizzaga_Gimmick.progress, barH);
-            } else if (index === 0 && finalMemoryState.isCasting) {
-                let progress = Math.min((Date.now() - finalMemoryState.castStartTime) / 3000, 1);
-                ctx.fillStyle = '#f77f00'; 
-                ctx.fillRect(barX, barY, barW * progress, barH);
-            } else {
-                ctx.fillStyle = boss.progress >= 1 ? '#ff3333' : '#ffaa00'; ctx.fillRect(barX, barY, barW * boss.progress, barH);
-            }
-            ctx.strokeStyle = '#888'; ctx.lineWidth = 1; ctx.strokeRect(barX, barY, barW, barH);
-        }
-    });
-
-    if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
-        ctx.beginPath(); ctx.arc(wave3BossB.x, wave3BossB.y, bossRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff4500'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-
-        ctx.save(); ctx.translate(wave3BossB.x, wave3BossB.y);
-        const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
-        ctx.strokeStyle = 'rgba(255, 69, 0, 0.4)'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.ellipse(0, 0, ringRadiusX, ringRadiusY, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-
-        if (imagesLoaded.truth && imagesLoaded.fake) {
-            let subImg = wave3BossB.currentEffect === '진실' ? imgTruth : imgFake;
-            ctx.drawImage(subImg, -ringRadiusX - size/2, -size/2, size, size); ctx.drawImage(subImg, ringRadiusX - size/2, -size/2, size, size);
-        }
-        ctx.restore();
-
-        const barW = 100; const barH = 10; const barX = wave3BossB.x - barW / 2; const barY = wave3BossB.y - bossRadius - 25;
-        ctx.fillStyle = '#000'; ctx.fillRect(barX, barY, barW, barH);
-        ctx.fillStyle = '#ffaa00'; ctx.fillRect(barX, barY, barW * wave3BossB.progress, barH);
-        ctx.strokeStyle = '#fff'; ctx.strokeRect(barX, barY, barW, barH);
-    }
-
-    if (!player.isDead) {
-        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-        ctx.fillStyle = player.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(player.x + player.lastDx * 20, player.y + player.lastDy * 20);
-        ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.stroke();
-    } else {
-        ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 4; ctx.beginPath();
-        ctx.moveTo(player.x - 15, player.y - 15); ctx.lineTo(player.x + 15, player.y + 15);
-        ctx.moveTo(player.x + 15, player.y - 15); ctx.lineTo(player.x - 15, player.y + 15);
-        ctx.stroke(); 
-    }
 
     if (isPaused) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -1038,7 +1056,7 @@ function update() {
     explosionVisuals.forEach(vis => { vis.radius += 2.5; vis.alpha -= 0.02; });
     explosionVisuals = explosionVisuals.filter(vis => vis.alpha > 0);
 
-    if (!isGameStarted || isGameOver) return;
+    if (!isGameStarted || isGameOver || isGameCleared) return;
     const now = Date.now();
     elapsedTimeDisplay = ((now - globalStartTime) / 1000).toFixed(1);
 
@@ -1175,6 +1193,9 @@ function update() {
                     else if (evt.t === 87) {
                         checkFinalMemorySafety();
                         finalMemoryState.isCasting = false;
+                    }
+                    else if (evt.t === 90) {
+                        if (!player.isDead) isGameCleared = true;
                     }
                 }
             });
