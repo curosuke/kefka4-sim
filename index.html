@@ -219,11 +219,11 @@ const TEXTS = {
             eyeFalseLooked: '{wave}회차 마안 실패: [거짓] 중앙 보스를 등짐!',
             bombMove: '가속도 폭탄 실패: 움직이지 않음!',
             bombStop: '가속도 폭탄 실패: 멈추지 않음!',
-            supportStack: '기믹 실패: [지원 타이밍] 디버프 미보유 상태이므로 12시/6시(쉐어 위치)로 집합해야 합니다!',
-            supportCrush: '기믹 실패: 지원 타이밍에 3시/9시 영역 침범!',
-            spreadFail: '기믹 실패: [산개 판정] 보스 조건에 따른 산개 정위치(3시/9시) 이탈!',
-            shareFail: '기믹 실패: [쉐어 판정] 보스 조건에 따른 집합 정위치(12시/6시) 이탈!',
-            shareCrush: '기믹 실패: 쉐어 단계에서 3시/9시 영역 침범!',
+            supportStack: '기믹 실패: [지원 타이밍] 디버프 미보유 상태이므로 12시/6시로 집합해야 합니다!',
+            supportCrush: '기믹 실패: 지원 타이밍에 산개 위치(10시/2시/4시/8시)로 들어갔습니다!',
+            spreadFail: '기믹 실패: [산개 판정] 산개 정위치(10시/2시/4시/8시) 이탈!',
+            shareFail: '기믹 실패: [쉐어 판정] 집합 정위치(12시/6시) 이탈!',
+            shareCrush: '기믹 실패: 쉐어 단계에서 산개 위치(10시/2시/4시/8시) 침범!',
             finalBossAoE: '중앙 보스 장판 피격!'
         }
     },
@@ -278,11 +278,11 @@ const TEXTS = {
             eyeFalseLooked: '{wave}回目 叫声失敗: [偽] 中央ボスを見ていない!',
             bombMove: '加速度爆弾失敗: 動いていない!',
             bombStop: '加速度爆弾失敗: 止まっていない!',
-            supportStack: 'ギミック失敗: [集合タイミング] デバフなしなので 12時/6時(頭割り位置) に集合してください!',
-            supportCrush: 'ギミック失敗: 集合タイミングで 3時/9時 領域に侵入!',
-            spreadFail: 'ギミック失敗: [散開判定] ボス条件に応じた散開位置(3時/9時) から外れた!',
-            shareFail: 'ギミック失敗: [頭割り判定] ボス条件に応じた集合位置(12時/6時) から外れた!',
-            shareCrush: 'ギミック失敗: 頭割り段階で 3時/9時 領域に侵入!',
+            supportStack: 'ギミック失敗: [集合タイミング] デバフなしなので 12時/6時 に集合してください!',
+            supportCrush: 'ギミック失敗: 集合タイミングで 散開位置(10時/2時/4時/8時) に侵入!',
+            spreadFail: 'ギミック失敗: [散開判定] 散開位置(10時/2時/4時/8時) から外れた!',
+            shareFail: 'ギミック失敗: [頭割り判定] 集合位置(12時/6時) から外れた!',
+            shareCrush: 'ギミック失敗: 頭割り段階で 散開位置(10時/2時/4時/8時) に侵入!',
             finalBossAoE: '中央ボス床被弾!'
         }
     }
@@ -614,6 +614,125 @@ function setPlayerFacing(dx, dy) {
     player.facingCardinal = facingCardinalFor(vector.x, vector.y);
 }
 
+function pointOnRing(angleDeg, radius) {
+    const angle = angleDeg * Math.PI / 180;
+    return {
+        x: mapCenter.x + Math.cos(angle) * radius,
+        y: mapCenter.y + Math.sin(angle) * radius
+    };
+}
+
+function offsetPoint(point, dx, dy) {
+    return { x: point.x + dx, y: point.y + dy };
+}
+
+function buildPartyFormation(mode) {
+    const ringRadius = mapRadius - 95;
+    const supportColor = '#6dd6ff';
+    const dpsColor = '#d18bff';
+    const stackOffsets = [
+        [-12, -12],
+        [12, -12],
+        [-12, 12],
+        [12, 12]
+    ];
+    const pairOffsets = [
+        [-10, 0],
+        [10, 0]
+    ];
+
+    if (mode === 'STACK') {
+        const topAnchor = pointOnRing(-90, ringRadius);
+        const bottomAnchor = pointOnRing(90, ringRadius);
+        return [
+            ...stackOffsets.map((offset, idx) => ({
+                id: `stack-top-${idx + 1}`,
+                label: `${idx + 1}`,
+                color: supportColor,
+                x: offsetPoint(topAnchor, offset[0], offset[1]).x,
+                y: offsetPoint(topAnchor, offset[0], offset[1]).y
+            })),
+            ...stackOffsets.map((offset, idx) => ({
+                id: `stack-bottom-${idx + 5}`,
+                label: `${idx + 5}`,
+                color: dpsColor,
+                x: offsetPoint(bottomAnchor, offset[0], offset[1]).x,
+                y: offsetPoint(bottomAnchor, offset[0], offset[1]).y
+            }))
+        ];
+    }
+
+    const upperLeft = pointOnRing(-120, ringRadius);
+    const upperRight = pointOnRing(-60, ringRadius);
+    const lowerLeft = pointOnRing(120, ringRadius);
+    const lowerRight = pointOnRing(60, ringRadius);
+    return [
+        ...pairOffsets.map((offset, idx) => ({
+            id: `spread-support-left-${idx + 1}`,
+            label: `${idx + 1}`,
+            color: supportColor,
+            x: offsetPoint(upperLeft, offset[0], offset[1]).x,
+            y: offsetPoint(upperLeft, offset[0], offset[1]).y
+        })),
+        ...pairOffsets.map((offset, idx) => ({
+            id: `spread-support-right-${idx + 3}`,
+            label: `${idx + 3}`,
+            color: supportColor,
+            x: offsetPoint(upperRight, offset[0], offset[1]).x,
+            y: offsetPoint(upperRight, offset[0], offset[1]).y
+        })),
+        ...pairOffsets.map((offset, idx) => ({
+            id: `spread-dps-left-${idx + 5}`,
+            label: `${idx + 5}`,
+            color: dpsColor,
+            x: offsetPoint(lowerLeft, offset[0], offset[1]).x,
+            y: offsetPoint(lowerLeft, offset[0], offset[1]).y
+        })),
+        ...pairOffsets.map((offset, idx) => ({
+            id: `spread-dps-right-${idx + 7}`,
+            label: `${idx + 7}`,
+            color: dpsColor,
+            x: offsetPoint(lowerRight, offset[0], offset[1]).x,
+            y: offsetPoint(lowerRight, offset[0], offset[1]).y
+        }))
+    ];
+}
+
+function pointNearSlots(point, slots, tolerance = 22) {
+    return slots.some(slot => Math.hypot(point.x - slot.x, point.y - slot.y) <= tolerance);
+}
+
+function getActiveFormationMode() {
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+    if (!activeEnv || activeEnv.type === "BOMB") return null;
+    if (activeEnv.type === "WATER") {
+        return activeEnv.rule === "진실" ? "STACK" : "SPREAD";
+    }
+    if (activeEnv.type === "THUNDER") {
+        return activeEnv.rule === "진실" ? "SPREAD" : "STACK";
+    }
+    return null;
+}
+
+function drawPartyFormation(slots) {
+    ctx.save();
+    slots.forEach((slot, index) => {
+        ctx.fillStyle = `${slot.color}55`;
+        ctx.strokeStyle = `${slot.color}cc`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(slot.x, slot.y, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(index + 1), slot.x, slot.y + 0.5);
+    });
+    ctx.restore();
+}
+
 function randomizeGimmick() {
     bossA_Gimmick.topEffect = effectTypes[Math.floor(Math.random() * 2)];
     bossA_Gimmick.bottomEffect = effectTypes[Math.floor(Math.random() * 2)];
@@ -736,6 +855,8 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
     let waterDebuff = activeDebuffs.find(d => d.type === "WATER" && d.timeLeft <= 2 && !d.processed);
     let thunderDebuff = activeDebuffs.find(d => d.type === "THUNDER" && d.timeLeft <= 2 && !d.processed);
     let bombDebuff = activeDebuffs.find(d => d.type === "BOMB" && d.timeLeft <= 2 && !d.processed);
+    const stackSlots = buildPartyFormation('STACK');
+    const spreadSlots = buildPartyFormation('SPREAD');
 
     let hasWater = !!waterDebuff;
     let hasThunder = !!thunderDebuff;
@@ -748,16 +869,11 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
         if (isBombTruth ? isMoving : !isMoving) deathMessage(isBombTruth ? 'bombMove' : 'bombStop');
     }
 
-    let dist12 = Math.hypot(invisibleObjects.h12.x - player.x, invisibleObjects.h12.y - player.y) < 120;
-    let dist3  = Math.hypot(invisibleObjects.h3.x - player.x, invisibleObjects.h3.y - player.y) < 120;
-    let dist6  = Math.hypot(invisibleObjects.h6.x - player.x, invisibleObjects.h6.y - player.y) < 120;
-    let dist9  = Math.hypot(invisibleObjects.h9.x - player.x, invisibleObjects.h9.y - player.y) < 120;
-
     if (isNoEnvBuff) {
-        if (!dist12 && !dist6) {
+        if (!pointNearSlots(player, stackSlots)) {
             deathMessage('supportStack');
             return;
-        } else if (dist3 || dist9) {
+        } else if (pointNearSlots(player, spreadSlots)) {
             deathMessage('supportCrush');
             return;
         } else {
@@ -774,15 +890,17 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
         }
 
         if (finalGimmickResult === "SPREAD") {
-            if (!dist3 && !dist9) {
+            if (!pointNearSlots(player, spreadSlots)) {
                 deathMessage('spreadFail');
+            } else if (pointNearSlots(player, stackSlots)) {
+                deathMessage('supportCrush');
             } else {
                 explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#ff9f1c', alpha: 1 });
             }
         } else if (finalGimmickResult === "SHARE") {
-            if (!dist12 && !dist6) {
+            if (!pointNearSlots(player, stackSlots)) {
                 deathMessage('shareFail');
-            } else if (dist3 || dist9) {
+            } else if (pointNearSlots(player, spreadSlots)) {
                 deathMessage('shareCrush');
             } else {
                 explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#00b4d8', alpha: 1 });
@@ -1213,6 +1331,11 @@ function draw() {
         });
 
         if (currentWave === 3) drawWave3SplitAoE();
+    }
+
+    const formationMode = getActiveFormationMode();
+    if (formationMode) {
+        drawPartyFormation(buildPartyFormation(formationMode));
     }
 
     explosionVisuals.forEach(vis => {
