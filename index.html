@@ -548,7 +548,6 @@ function resetGame() {
     bosses.forEach(b => { b.startTime = null; b.progress = 0; b.isCasting = false; b.castCompleteTime = null; b.currentEffect = ''; b.castName = ''; });
     randomizeGimmick();
     bosses[0].startTime = globalStartTime; bosses[0].isCasting = true;
-    bosses[1].startTime = globalStartTime; bosses[1].isCasting = true; 
     bosses[2].startTime = globalStartTime; bosses[2].isCasting = true;
 }
 
@@ -772,7 +771,7 @@ function draw() {
 
         ctx.fillStyle = '#888'; ctx.font = '14px sans-serif'; ctx.textAlign = 'right';
         ctx.fillText("@GIMMOMO/뽀쨔@톤베리 제작", canvas.width - 20, canvas.height - 40);
-        ctx.fillText("문의 Discord : momo_gim", canvas.width - 20, canvas.height - 20);
+        ctx.fillText("문의 discod : momo_gim", canvas.width - 20, canvas.height - 20);
         return;
     }
 
