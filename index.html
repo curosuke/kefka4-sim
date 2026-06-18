@@ -56,6 +56,7 @@
             line-height: 1.1;
             font-weight: 800;
             letter-spacing: -0.02em;
+            white-space: pre-line;
         }
         .lang-label {
             margin-top: 20px;
@@ -116,6 +117,13 @@
             font-size: 14px;
             line-height: 1.35;
         }
+        .start-meta a {
+            color: #b7dfff;
+            text-decoration: none;
+        }
+        .start-meta a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -171,11 +179,13 @@ const TEXTS = {
     ko: {
         ui: {
             title: '4페이즈 연습 시뮬레이션',
+            startTitle: '4페이즈 연습 시뮬레이션',
             languagePrompt: '언어를 선택하세요',
             startHint: "게임 도중 'P' 키를 누르면 언제든 일시정지 할 수 있습니다.",
             startKeys: 'WASD키로 조작 / 마우스로도 조작 가능',
-            credits: '@GIMMOMO/뽀쨔@톤베리 제작',
-            contact: '문의 Discord : momo_gim',
+            watchHint: '확인: {hint}',
+            credits: '오리지널: <a href="https://gimmomo.github.io/kefka4-sim/" target="_blank" rel="noreferrer noopener">https://gimmomo.github.io/kefka4-sim/</a>',
+            contact: '문의: <a href="https://x.com/corosuke9" target="_blank" rel="noreferrer noopener">https://x.com/corosuke9</a>',
             start: '시작하기',
             retry: '다시 도전하기',
             guideOn: '가이드 ON',
@@ -230,11 +240,13 @@ const TEXTS = {
     ja: {
         ui: {
             title: '絶・妖精乱舞 P4(ネオエクスデス&カオス) イメトレ用シミュレータ',
+            startTitle: '絶・妖精乱舞 P4\n(ネオエクスデス&カオス)\nイメトレ用シミュレータ',
             languagePrompt: '言語を選択してください',
             startHint: "ゲーム中に 'P' キーを押すといつでも一時停止できます。",
             startKeys: 'WASDキーで操作 / マウスでも操作可',
-            credits: '@GIMMOMO/뽀쨔@톤베리 制作',
-            contact: '問い合わせ Discord : momo_gim',
+            watchHint: '確認: {hint}',
+            credits: 'オリジナル: <a href="https://gimmomo.github.io/kefka4-sim/" target="_blank" rel="noreferrer noopener">https://gimmomo.github.io/kefka4-sim/</a>',
+            contact: '問い合わせ先: <a href="https://x.com/corosuke9" target="_blank" rel="noreferrer noopener">https://x.com/corosuke9</a>',
             start: '開始',
             retry: 'もう一度挑戦',
             guideOn: 'ガイド ON',
@@ -333,13 +345,13 @@ function setLanguage(nextLanguage) {
 
 function syncStartOverlay() {
     if (!startOverlay) return;
-    startTitle.textContent = t('ui.title');
+    startTitle.textContent = t('ui.startTitle');
     languagePrompt.textContent = t('ui.languagePrompt');
     startGameButton.textContent = t('ui.start');
     startKeys.textContent = t('ui.startKeys');
     startHint.textContent = t('ui.startHint');
-    creditsLine.textContent = t('ui.credits');
-    contactLine.textContent = t('ui.contact');
+    creditsLine.innerHTML = t('ui.credits');
+    contactLine.innerHTML = t('ui.contact');
     langKoButton.classList.toggle('active', currentLanguage === 'ko');
     langJaButton.classList.toggle('active', currentLanguage === 'ja');
 }
@@ -376,6 +388,113 @@ function bossCastLabel(castName) {
         case '불꽃': return t('boss.flame');
         default: return castName;
     }
+}
+
+function getPendingShareDebuff() {
+    const candidate = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER") && !d.processed && d.timeLeft <= 2);
+    if (!candidate) return null;
+    const isShare = candidate.type === "WATER" ? candidate.rule === "진실" : candidate.rule !== "진실";
+    return isShare ? candidate : null;
+}
+
+function getGuideHintText() {
+    const pendingShare = getPendingShareDebuff();
+    if (pendingShare) {
+        return currentLanguage === 'ja' ? '頭割りデバフを見る' : '쉐어 디버프 확인';
+    }
+
+    if (currentWave === 3) {
+        const colorDebuff = activeDebuffs.find(d => d.type === "DEAD_SCAR" || d.type === "LIVE_SCAR");
+        const hitDebuff = activeDebuffs.find(d => d.type === "ALAG" || d.type === "TRANSCEND");
+        if (colorDebuff && hitDebuff) {
+            return currentLanguage === 'ja' ? '青/ピンクのデバフとアラガンを見る' : '파란/분홍 디버프와 아라간 확인';
+        }
+    }
+
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+    if (activeEnv) {
+        if (activeEnv.type === "BOMB") {
+            return currentLanguage === 'ja' ? '加速度爆弾を見る' : '가속도 폭탄 확인';
+        }
+        return currentLanguage === 'ja' ? '水/雷デバフを見る' : '물/번개 디버프 확인';
+    }
+
+    return currentLanguage === 'ja' ? '次のデバフを確認' : '다음 디버프 확인';
+}
+
+function drawGuideHintPanel(x, y, width) {
+    const panelWidth = width || 320;
+    const padding = 12;
+    const lineHeight = 22;
+    const lines = [];
+
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+    const envTime = activeEnv ? activeEnv.timeLeft : 0;
+    const pendingEyes = backgroundEyes.filter(e => !e.processed);
+
+    lines.push({ text: t('ui.watchHint', { hint: getGuideHintText() }), color: '#9ee7ff' });
+
+    if (activeEnv) {
+        lines.push({ text: t('ui.guideTimer', { seconds: envTime }), color: '#00b4d8' });
+    }
+
+    pendingEyes.forEach((pendingEye) => {
+        const eyeTimeLeft = Math.max(pendingEye.initialDuration - Math.floor((Date.now() - pendingEye.assignTime) / 1000), 0);
+        const eyeAction = pendingEye.rule === "진실" ? t('action.hide') : t('action.look');
+        lines.push({ text: t('ui.eyeTimer', { wave: pendingEye.wave, action: eyeAction, seconds: eyeTimeLeft }), color: '#bf55ec' });
+    });
+
+    if (thunderga_Gimmick.isCasting) {
+        lines.push({ text: t('ui.thunderCasting', { effect: effectLabel(thunderga_Gimmick.effect) }), color: '#ffd700' });
+    }
+
+    if (lines.length === 0) return;
+
+    const totalHeight = padding * 2 + lines.length * lineHeight;
+    const startX = Math.max(12, x - panelWidth);
+    const startY = Math.max(12, y - totalHeight);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillRect(startX, startY, panelWidth, totalHeight);
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    lines.forEach((line, index) => {
+        ctx.fillStyle = line.color;
+        ctx.fillText(line.text, startX + padding, startY + padding + lineHeight * index + lineHeight / 2);
+    });
+
+    ctx.restore();
+}
+
+function drawDebuffActionLabel(text, x, y, color) {
+    ctx.save();
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y - 4);
+    ctx.restore();
+}
+
+function wrapText(text, maxWidth) {
+    const lines = [];
+    let currentLine = '';
+
+    for (const char of text) {
+        const testLine = currentLine + char;
+        if (currentLine && ctx.measureText(testLine).width > maxWidth) {
+            lines.push(currentLine);
+            currentLine = char;
+        } else {
+            currentLine = testLine;
+        }
+    }
+
+    if (currentLine) lines.push(currentLine);
+    return lines;
 }
 
 function deathMessage(key, vars = {}) {
@@ -1331,38 +1450,11 @@ function draw() {
     ctx.fillText(`${t('ui.battleTime')}: ${elapsedTimeDisplay}${t('ui.timeUnit')}`, 30, 50);
 
     if (isGameStarted && !isGameOver && !isGameCleared) {
-        
-        
         if (showDebugText) {
-            let displayOffset = 80;
-            
-            let activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
-            let envTime = activeEnv ? activeEnv.timeLeft : 0;
-
-            if (activeEnv) {
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#00b4d8';
-                ctx.fillText(t('ui.guideTimer', { seconds: envTime }), 30, displayOffset);
-                displayOffset += 25;
-            }
-
-            ctx.font = '13px sans-serif'; ctx.fillStyle = '#ffffff';
-            ctx.fillText(`向き: ${player.facingCardinal}`, 30, displayOffset);
-            displayOffset += 25;
-
-            let pendingEyes = backgroundEyes.filter(e => !e.processed);
-            pendingEyes.forEach((pendingEye, idx) => {
-                let eyeTimeLeft = Math.max(pendingEye.initialDuration - Math.floor((Date.now() - pendingEye.assignTime)/1000), 0);
-                let eyeAction = pendingEye.rule === "진실" ? t('action.hide') : t('action.look');
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#bf55ec';
-                ctx.fillText(t('ui.eyeTimer', { wave: pendingEye.wave, action: eyeAction, seconds: eyeTimeLeft }), 30, displayOffset);
-                displayOffset += 25;
-            });
-
-            if (thunderga_Gimmick.isCasting) {
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#ffd700';
-                ctx.fillText(t('ui.thunderCasting', { effect: effectLabel(thunderga_Gimmick.effect) }), 30, displayOffset);
-                displayOffset += 25;
-            }
+            ctx.font = '13px sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`向き: ${player.facingCardinal}`, 30, 80);
+            drawGuideHintPanel(canvas.width - 18, canvas.height - 18, 340);
         }
 
         ctx.fillStyle = showDebugText ? '#4cc9f0' : '#777'; 
@@ -1378,24 +1470,27 @@ function draw() {
     if (isGameStarted) {
         let visibleDebuffs = activeDebuffs.filter(d => !d.processed);
         if (visibleDebuffs.length > 0) {
-            const iconSize = 28;
-            const gap = visibleDebuffs.length > 4 ? 46 : 54;
-            const row1Total = visibleDebuffs.filter(d => d.row !== 2).length;
-            const row2Total = visibleDebuffs.filter(d => d.row === 2).length;
-            const widestRowCount = Math.max(row1Total, row2Total, 1);
-            const panelWidth = iconSize + gap * (widestRowCount - 1);
-            const startX = Math.max(20, canvas.width - 20 - panelWidth);
-            const startYRow1 = 46;
-            const startYRow2 = 108;
-            let row1Cursor = 0;
-            let row2Cursor = 0;
+            const startYRow1 = 60;
+            const startYRow2 = 122;
+            const iconSize = 28; 
+            const gap = 58;          
+            const row1Items = visibleDebuffs.filter(d => d.row !== 2);
+            const row2Items = visibleDebuffs.filter(d => d.row === 2);
+            const row1Width = row1Items.length > 0 ? ((row1Items.length - 1) * gap + iconSize) : 0;
+            const row2Width = row2Items.length > 0 ? ((row2Items.length - 1) * gap + iconSize) : 0;
+            const rightEdge = canvas.width - 20;
+            const startXRow1 = Math.max(20, rightEdge - row1Width);
+            const startXRow2 = Math.max(20, rightEdge - row2Width);
+
+            let row1Count = 0;
+            let row2Count = 0;
 
             visibleDebuffs.forEach((debuff) => {
                 let isRow2 = (debuff.row === 2);
-                let currentX = startX + ((isRow2 ? row2Cursor : row1Cursor) * gap);
+                let currentX = (isRow2 ? startXRow2 : startXRow1) + ((isRow2 ? row2Count : row1Count) * gap);
                 let currentY = isRow2 ? startYRow2 : startYRow1;
 
-                if (isRow2) row2Cursor++; else row1Cursor++;
+                if (isRow2) row2Count++; else row1Count++;
 
                 if (imagesLoaded[debuff.loadKey]) {
                     ctx.drawImage(debuff.img, currentX, currentY, iconSize, iconSize);
@@ -1435,7 +1530,8 @@ function draw() {
                     else if (textResult === "분홍맞기") { krWord = actionLabel(textResult); ctx.fillStyle = '#ff69b4'; }
                     else if (textResult === "CALC") { krWord = actionLabel(textResult); ctx.fillStyle = '#bbb'; }
 
-                    ctx.fillText(krWord, currentX + iconSize/2, currentY - 11); ctx.restore();
+                    drawDebuffActionLabel(krWord, currentX + iconSize/2, currentY, ctx.fillStyle);
+                    ctx.restore();
                 }
 
                 ctx.save(); ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
@@ -1448,8 +1544,16 @@ function draw() {
 
     if (isGameOver || isGameCleared) {
         if (isGameOver) {
-            ctx.fillStyle = '#ff3333'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(t('ui.deathPrefix') + deathReason, mapCenter.x, mapCenter.y - 80);
+            ctx.fillStyle = '#ff3333';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const deathLines = wrapText(t('ui.deathPrefix') + deathReason, 620);
+            const baseY = mapCenter.y - 95;
+            const lineGap = 24;
+            deathLines.forEach((line, index) => {
+                ctx.fillText(line, mapCenter.x, baseY + index * lineGap);
+            });
         } else {
             ctx.fillStyle = '#4ec9b0'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
             ctx.fillText(t('ui.phaseClear'), mapCenter.x, mapCenter.y - 80);
