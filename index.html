@@ -56,6 +56,7 @@
             line-height: 1.1;
             font-weight: 800;
             letter-spacing: -0.02em;
+            white-space: pre-line;
         }
         .lang-label {
             margin-top: 20px;
@@ -178,6 +179,7 @@ const TEXTS = {
     ko: {
         ui: {
             title: '4페이즈 연습 시뮬레이션',
+            startTitle: '4페이즈 연습 시뮬레이션',
             languagePrompt: '언어를 선택하세요',
             startHint: "게임 도중 'P' 키를 누르면 언제든 일시정지 할 수 있습니다.",
             startKeys: 'WASD키로 조작 / 마우스로도 조작 가능',
@@ -238,6 +240,7 @@ const TEXTS = {
     ja: {
         ui: {
             title: '絶・妖精乱舞 P4(ネオエクスデス&カオス) イメトレ用シミュレータ',
+            startTitle: '絶・妖精乱舞 P4\n(ネオエクスデス&カオス)\nイメトレ用シミュレータ',
             languagePrompt: '言語を選択してください',
             startHint: "ゲーム中に 'P' キーを押すといつでも一時停止できます。",
             startKeys: 'WASDキーで操作 / マウスでも操作可',
@@ -342,7 +345,7 @@ function setLanguage(nextLanguage) {
 
 function syncStartOverlay() {
     if (!startOverlay) return;
-    startTitle.textContent = t('ui.title');
+    startTitle.textContent = t('ui.startTitle');
     languagePrompt.textContent = t('ui.languagePrompt');
     startGameButton.textContent = t('ui.start');
     startKeys.textContent = t('ui.startKeys');
