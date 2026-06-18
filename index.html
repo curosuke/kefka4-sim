@@ -1378,21 +1378,24 @@ function draw() {
     if (isGameStarted) {
         let visibleDebuffs = activeDebuffs.filter(d => !d.processed);
         if (visibleDebuffs.length > 0) {
-            const startX = canvas.width - 165;
-            const startYRow1 = 60;
-            const startYRow2 = 122;
-            const iconSize = 28; 
-            const gap = 60;          
-
-            let row1Count = 0;
-            let row2Count = 0;
+            const iconSize = 28;
+            const gap = visibleDebuffs.length > 4 ? 46 : 54;
+            const row1Total = visibleDebuffs.filter(d => d.row !== 2).length;
+            const row2Total = visibleDebuffs.filter(d => d.row === 2).length;
+            const widestRowCount = Math.max(row1Total, row2Total, 1);
+            const panelWidth = iconSize + gap * (widestRowCount - 1);
+            const startX = Math.max(20, canvas.width - 20 - panelWidth);
+            const startYRow1 = 46;
+            const startYRow2 = 108;
+            let row1Cursor = 0;
+            let row2Cursor = 0;
 
             visibleDebuffs.forEach((debuff) => {
                 let isRow2 = (debuff.row === 2);
-                let currentX = startX + ((isRow2 ? row2Count : row1Count) * gap);
+                let currentX = startX + ((isRow2 ? row2Cursor : row1Cursor) * gap);
                 let currentY = isRow2 ? startYRow2 : startYRow1;
 
-                if (isRow2) row2Count++; else row1Count++;
+                if (isRow2) row2Cursor++; else row1Cursor++;
 
                 if (imagesLoaded[debuff.loadKey]) {
                     ctx.drawImage(debuff.img, currentX, currentY, iconSize, iconSize);
