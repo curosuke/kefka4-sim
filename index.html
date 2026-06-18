@@ -116,6 +116,13 @@
             font-size: 14px;
             line-height: 1.35;
         }
+        .start-meta a {
+            color: #b7dfff;
+            text-decoration: none;
+        }
+        .start-meta a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -174,8 +181,9 @@ const TEXTS = {
             languagePrompt: '언어를 선택하세요',
             startHint: "게임 도중 'P' 키를 누르면 언제든 일시정지 할 수 있습니다.",
             startKeys: 'WASD키로 조작 / 마우스로도 조작 가능',
-            credits: '@GIMMOMO/뽀쨔@톤베리 제작',
-            contact: '문의 Discord : momo_gim',
+            watchHint: '확인: {hint}',
+            credits: '오리지널: <a href="https://gimmomo.github.io/kefka4-sim/" target="_blank" rel="noreferrer noopener">https://gimmomo.github.io/kefka4-sim/</a>',
+            contact: '문의: <a href="https://x.com/corosuke9" target="_blank" rel="noreferrer noopener">https://x.com/corosuke9</a>',
             start: '시작하기',
             retry: '다시 도전하기',
             guideOn: '가이드 ON',
@@ -233,8 +241,9 @@ const TEXTS = {
             languagePrompt: '言語を選択してください',
             startHint: "ゲーム中に 'P' キーを押すといつでも一時停止できます。",
             startKeys: 'WASDキーで操作 / マウスでも操作可',
-            credits: '@GIMMOMO/뽀쨔@톤베리 制作',
-            contact: '問い合わせ Discord : momo_gim',
+            watchHint: '確認: {hint}',
+            credits: 'オリジナル: <a href="https://gimmomo.github.io/kefka4-sim/" target="_blank" rel="noreferrer noopener">https://gimmomo.github.io/kefka4-sim/</a>',
+            contact: '問い合わせ先: <a href="https://x.com/corosuke9" target="_blank" rel="noreferrer noopener">https://x.com/corosuke9</a>',
             start: '開始',
             retry: 'もう一度挑戦',
             guideOn: 'ガイド ON',
@@ -338,8 +347,8 @@ function syncStartOverlay() {
     startGameButton.textContent = t('ui.start');
     startKeys.textContent = t('ui.startKeys');
     startHint.textContent = t('ui.startHint');
-    creditsLine.textContent = t('ui.credits');
-    contactLine.textContent = t('ui.contact');
+    creditsLine.innerHTML = t('ui.credits');
+    contactLine.innerHTML = t('ui.contact');
     langKoButton.classList.toggle('active', currentLanguage === 'ko');
     langJaButton.classList.toggle('active', currentLanguage === 'ja');
 }
@@ -465,6 +474,24 @@ function drawDebuffActionLabel(text, x, y, color) {
     ctx.fillStyle = color;
     ctx.fillText(text, x, y - 4);
     ctx.restore();
+}
+
+function wrapText(text, maxWidth) {
+    const lines = [];
+    let currentLine = '';
+
+    for (const char of text) {
+        const testLine = currentLine + char;
+        if (currentLine && ctx.measureText(testLine).width > maxWidth) {
+            lines.push(currentLine);
+            currentLine = char;
+        } else {
+            currentLine = testLine;
+        }
+    }
+
+    if (currentLine) lines.push(currentLine);
+    return lines;
 }
 
 function deathMessage(key, vars = {}) {
@@ -1440,18 +1467,24 @@ function draw() {
     if (isGameStarted) {
         let visibleDebuffs = activeDebuffs.filter(d => !d.processed);
         if (visibleDebuffs.length > 0) {
-            const startX = canvas.width - 165;
             const startYRow1 = 60;
             const startYRow2 = 122;
             const iconSize = 28; 
-            const gap = 60;          
+            const gap = 58;          
+            const row1Items = visibleDebuffs.filter(d => d.row !== 2);
+            const row2Items = visibleDebuffs.filter(d => d.row === 2);
+            const row1Width = row1Items.length > 0 ? ((row1Items.length - 1) * gap + iconSize) : 0;
+            const row2Width = row2Items.length > 0 ? ((row2Items.length - 1) * gap + iconSize) : 0;
+            const rightEdge = canvas.width - 20;
+            const startXRow1 = Math.max(20, rightEdge - row1Width);
+            const startXRow2 = Math.max(20, rightEdge - row2Width);
 
             let row1Count = 0;
             let row2Count = 0;
 
             visibleDebuffs.forEach((debuff) => {
                 let isRow2 = (debuff.row === 2);
-                let currentX = startX + ((isRow2 ? row2Count : row1Count) * gap);
+                let currentX = (isRow2 ? startXRow2 : startXRow1) + ((isRow2 ? row2Count : row1Count) * gap);
                 let currentY = isRow2 ? startYRow2 : startYRow1;
 
                 if (isRow2) row2Count++; else row1Count++;
@@ -1508,8 +1541,16 @@ function draw() {
 
     if (isGameOver || isGameCleared) {
         if (isGameOver) {
-            ctx.fillStyle = '#ff3333'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(t('ui.deathPrefix') + deathReason, mapCenter.x, mapCenter.y - 80);
+            ctx.fillStyle = '#ff3333';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const deathLines = wrapText(t('ui.deathPrefix') + deathReason, 620);
+            const baseY = mapCenter.y - 95;
+            const lineGap = 24;
+            deathLines.forEach((line, index) => {
+                ctx.fillText(line, mapCenter.x, baseY + index * lineGap);
+            });
         } else {
             ctx.fillStyle = '#4ec9b0'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center';
             ctx.fillText(t('ui.phaseClear'), mapCenter.x, mapCenter.y - 80);
