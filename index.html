@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>절 케프카 4페이즈 연습기 (시작 버튼 버그 완전 종결판)</title>
+    <title>요성난무 4페 시뮬레이터(김모모)</title>
     <style>
         body {
             margin: 0;
@@ -57,7 +57,7 @@ function checkFinalMemorySafety() {
     }
 
     let inThunderAoE = false;
-    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 150; 
     switch(finalMemoryState.thunderPattern) {
         case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThunderAoE = true; break;
         case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
@@ -91,8 +91,8 @@ const player = {
 const bossRadius = 25;
 const bosses = [
     { x: mapCenter.x, y: mapCenter.y, color: '#9b5de5', duration: 4000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '' }, 
-    { x: mapCenter.x + Math.cos(Math.PI * 4 / 3) * (mapRadius - 40), y: mapCenter.y + Math.sin(Math.PI * 4 / 3) * (mapRadius - 40), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '', castName: '' }, 
-    { x: mapCenter.x + Math.cos(Math.PI * 5 / 3) * (mapRadius - 40), y: mapCenter.y + Math.sin(Math.PI * 5 / 3) * (mapRadius - 40), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '' }  
+    { x: mapCenter.x + Math.cos(Math.PI * 4 / 3) * (mapRadius + 20), y: mapCenter.y + Math.sin(Math.PI * 4 / 3) * (mapRadius + 20), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '', castName: '' }, 
+    { x: mapCenter.x + Math.cos(Math.PI * 5 / 3) * (mapRadius + 20), y: mapCenter.y + Math.sin(Math.PI * 5 / 3) * (mapRadius + 20), color: '#5c3d99', duration: 8000, startTime: null, progress: 0, isCasting: false, castCompleteTime: null, currentEffect: '' }  
 ];
 
 const invisibleObjects = {
@@ -122,6 +122,10 @@ const imgAlag = new Image(); imgAlag.src = "알라그필드.png"; imgAlag.onload
 
 const imgFlood = new Image(); imgFlood.src = "물.png"; imgFlood.onload = () => imagesLoaded.flood = true;
 const imgFlame = new Image(); imgFlame.src = "불.png"; imgFlame.onload = () => imagesLoaded.flame = true;
+const imgMap = new Image(); imgMap.src = "맵.png"; imgMap.onload = () => imagesLoaded.map = true;
+const imgKefka = new Image(); imgKefka.src = "케프카.png"; imgKefka.onload = () => imagesLoaded.kefka = true;
+const imgChaos = new Image(); imgChaos.src = "카오스.png"; imgChaos.onload = () => imagesLoaded.chaos = true;
+const imgNeo = new Image(); imgNeo.src = "네오엑스데스.png"; imgNeo.onload = () => imagesLoaded.neo = true;
 
 let isGameStarted = false;
 let isGameOver = false; 
@@ -186,7 +190,7 @@ let isSubBossesVanished = false;
 let wave3TimelineState = "NONE"; 
 let wave3TimerAnchor = null;
 
-let wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+let wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '', isPinkRight: true };
 
 let thunderga_Gimmick = {
     isCasting: false,
@@ -236,23 +240,23 @@ function randomizeGimmick() {
     bosses[2].currentEffect = effectTypes[Math.floor(Math.random() * 2)];
 
     if (currentWave === 1) {
-        firstWave11BossGimmick = Math.random() < 0.5 ? "해일" : "불꽃";
+        firstWave11BossGimmick = Math.random() < 0.5 ? "해일" : "화염";
         bosses[1].castName = firstWave11BossGimmick;
     } else if (currentWave === 2) {
-        bosses[1].castName = (firstWave11BossGimmick === "해일") ? "불꽃" : "해일";
+        bosses[1].castName = (firstWave11BossGimmick === "해일") ? "화염" : "해일";
     }
 }
 
 function assign11BossDebuff(wave) {
     let now = Date.now();
     let current11Gimmick = bosses[1].castName;
-    let absoluteTime = current11Gimmick === "불꽃" ? 62 : 84;
+    let absoluteTime = current11Gimmick === "화염" ? 62 : 84;
     let wave11Duration = (wave === 1) ? absoluteTime - 12 : absoluteTime - 24;
 
     activeDebuffs.push({
-        type: current11Gimmick === "불꽃" ? "FLAME" : "FLOOD", actionText: current11Gimmick,
-        img: current11Gimmick === "불꽃" ? imgFlame : imgFlood, loadKey: current11Gimmick === "불꽃" ? "flame" : "flood",
-        color: current11Gimmick === "불꽃" ? '#ff4500' : '#00b4d8', initialDuration: wave11Duration,
+        type: current11Gimmick === "화염" ? "FLAME" : "FLOOD", actionText: current11Gimmick,
+        img: current11Gimmick === "화염" ? imgFlame : imgFlood, loadKey: current11Gimmick === "화염" ? "flame" : "flood",
+        color: current11Gimmick === "화염" ? '#ff4500' : '#00b4d8', initialDuration: wave11Duration,
         assignTime: now, timeLeft: wave11Duration, rule: bosses[1].currentEffect, row: 2, processed: false
     });
 }
@@ -338,6 +342,15 @@ function executeSingleEyeCheck(eyeObj) {
         else explosionVisuals.push({ x: mapCenter.x, y: mapCenter.y, radius: 10, maxRadius: 150, color: '#a2d2ff', alpha: 1 });
     }
     activeDebuffs.forEach(d => { if (d.type === "EYE" && d.initialDuration === eyeObj.initialDuration) d.processed = true; });
+
+    if (eyeObj.wave === 1 && !player.isDead) {
+        bosses[0].isCasting = true;
+        bosses[0].castName = "두근두근 알테마";
+        bosses[0].startTime = Date.now();
+        bosses[0].duration = 5000;
+        bosses[0].progress = 0;
+        bosses[0].castCompleteTime = null;
+    }
 }
 
 function executeEnvironmentCheck(targetAbsoluteTime) {
@@ -409,7 +422,7 @@ function checkThundergaSafety() {
     
     const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
     let inThundergaAoE = false;
-    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 150; 
     
     switch(thunderga_Gimmick.thunderPattern) {
         case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThundergaAoE = true; break;
@@ -451,12 +464,12 @@ function evaluateSubBossAoESafety(aoe) {
     let dist = Math.hypot(player.x - aoe.x, player.y - aoe.y);
 
     if (aoe.shape === "CIRCLE") {
-        if (dist <= 120) triggerPlayerDeath(`11시 보스 [원형 장판] 피격 즉사!`);
+        if (dist <= 80) triggerPlayerDeath(`11시 보스 [원형 장판] 피격 즉사!`);
     } else if (aoe.shape === "DONUT") {
         if (dist >= 80 && dist <= 220) triggerPlayerDeath(`11시 보스 [고리 도넛 장판] 피격 즉사!`);
     }
     if (!player.isDead) {
-        explosionVisuals.push({ x: aoe.x, y: aoe.y, radius: 10, maxRadius: aoe.shape === 'CIRCLE' ? 120 : 220, color: '#a2d2ff', alpha: 1 });
+        explosionVisuals.push({ x: aoe.x, y: aoe.y, radius: 10, maxRadius: aoe.shape === 'CIRCLE' ? 80 : 220, color: '#a2d2ff', alpha: 1 });
     }
 }
 
@@ -472,7 +485,19 @@ function checkWave3SplitSafety() {
     const bCenterX = mapCenter.x - wave3BossB.x; const bCenterY = mapCenter.y - wave3BossB.y;
     
     const crossProduct = bCenterX * vY - bCenterY * vX;
-    let standOnColor = (crossProduct >= 0) ? "PINK" : "BLUE";
+    const distBossToCenter = Math.sqrt(bCenterX * bCenterX + bCenterY * bCenterY);
+    const distToLine = Math.abs(crossProduct) / distBossToCenter;
+
+    if (distToLine <= 75) {
+        triggerPlayerDeath("3회차 실패: 중앙 붉은색 직선 장판을 밟았습니다!");
+        return;
+    }
+    let standOnColor;
+    if (wave3BossB.isPinkRight) {
+        standOnColor = (crossProduct >= 0) ? "PINK" : "BLUE";
+    } else {
+        standOnColor = (crossProduct >= 0) ? "BLUE" : "PINK";
+    }
 
     let isBlueScar = colorDebuff.type === "DEAD_SCAR";
     let isAlagField = hitDebuff.type === "ALAG";
@@ -531,7 +556,7 @@ function resetGame() {
     isSubBossesVanished = false;
     wave3TimelineState = "NONE";
     wave3TimerAnchor = null;
-    wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+    wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '', isPinkRight: true };
 
     thunderga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', thunderPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
     blizzaga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', blizzardPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
@@ -590,7 +615,7 @@ function evaluateCurrentPosition() {
         if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
     }
     let inThunderAoE = false;
-    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
+    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 150; 
     switch(bossA_Gimmick.thunderPattern) {
         case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThunderAoE = true; break;
         case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
@@ -612,7 +637,7 @@ function checkSafety() {
 
 function drawAoELayers(alpha1, alpha2) {
     ctx.save();
-    ctx.fillStyle = `rgba(0, 180, 216, ${alpha1})`;
+    ctx.fillStyle = `rgba(155, 93, 229, ${alpha1})`;
     if (bossA_Gimmick.blizzardPattern === 0) {
         ctx.fillRect(mapCenter.x, 0, 400, mapCenter.y); ctx.fillRect(0, mapCenter.y, mapCenter.x, 400);
     } else {
@@ -620,7 +645,7 @@ function drawAoELayers(alpha1, alpha2) {
     }
     ctx.fillStyle = `rgba(255, 105, 180, ${alpha2})`; ctx.translate(mapCenter.x, mapCenter.y);
     ctx.rotate(bossA_Gimmick.thunderPattern >= 2 ? Math.PI/4 : -Math.PI/4);
-    const w = 175;
+    const w = 150;
     if (bossA_Gimmick.thunderPattern % 2 === 0) {
         ctx.fillRect(-w, -mapRadius, w, mapRadius*2); ctx.fillRect(w, -mapRadius, w, mapRadius*2);
     } else {
@@ -634,7 +659,7 @@ function drawThundergaAoELayer(pattern, alpha) {
     ctx.fillStyle = `rgba(255, 105, 180, ${alpha})`; 
     ctx.translate(mapCenter.x, mapCenter.y);
     ctx.rotate(pattern >= 2 ? Math.PI/4 : -Math.PI/4);
-    const w = 175;
+    const w = 150;
     if (pattern % 2 === 0) {
         ctx.fillRect(-w, -mapRadius, w, mapRadius*2); ctx.fillRect(w, -mapRadius, w, mapRadius*2);
     } else {
@@ -645,7 +670,7 @@ function drawThundergaAoELayer(pattern, alpha) {
 
 function drawBlizzagaAoELayer(pattern, alpha) {
     ctx.save();
-    ctx.fillStyle = `rgba(0, 180, 216, ${alpha})`;
+    ctx.fillStyle = `rgba(155, 93, 229, ${alpha})`;
     if (pattern === 0) {
         ctx.fillRect(mapCenter.x, 0, 400, mapCenter.y); ctx.fillRect(0, mapCenter.y, mapCenter.x, 400);
     } else {
@@ -662,8 +687,17 @@ function drawWave3SplitAoE() {
     const targetAngle = Math.atan2(mapCenter.y - wave3BossB.y, mapCenter.x - wave3BossB.x);
     ctx.translate(wave3BossB.x, wave3BossB.y); ctx.rotate(targetAngle);
 
-    ctx.fillStyle = "rgba(255, 105, 180, 0.3)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
-    ctx.fillStyle = "rgba(0, 180, 216, 0.3)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    if (wave3BossB.isPinkRight) {
+        ctx.fillStyle = "rgba(255, 105, 180, 0.7)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
+        ctx.fillStyle = "rgba(0, 180, 216, 0.7)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    } else {
+        ctx.fillStyle = "rgba(0, 180, 216, 0.7)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
+        ctx.fillStyle = "rgba(255, 105, 180, 0.7)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    }
+    
+    ctx.fillStyle = "rgba(255, 0, 0, 0.7)"; 
+    ctx.fillRect(0, -75, mapRadius * 3, 150);
+
     ctx.restore();
 }
 
@@ -748,8 +782,8 @@ function drawFinalMemoryRings(bx, by) {
 
 function drawFinalMemoryAoE() {
     if (!finalMemoryState.isCasting) return;
-    drawThundergaAoELayer(finalMemoryState.thunderPattern, 0.15);
-    drawBlizzagaAoELayer(finalMemoryState.blizzardPattern, 0.15);
+    drawThundergaAoELayer(finalMemoryState.thunderPattern, 0.5);
+    drawBlizzagaAoELayer(finalMemoryState.blizzardPattern, 0.5);
 }
 
 function drawVirtualTimerIndicator() {
@@ -775,38 +809,38 @@ function draw() {
         return;
     }
 
-    ctx.beginPath(); ctx.arc(mapCenter.x, mapCenter.y, mapRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = '#555'; ctx.lineWidth = 5; ctx.stroke(); ctx.fillStyle = '#1a1a1a'; ctx.fill();
+    if (isGameStarted) {
+        [1, 2].forEach(index => {
+            let boss = bosses[index];
+            if (currentWave === 3 && isSubBossesVanished) return;
+            let imgToDraw = (index === 1) ? imgChaos : imgNeo;
+            let isLoaded = (index === 1) ? imagesLoaded.chaos : imagesLoaded.neo;
+            if (isLoaded) ctx.drawImage(imgToDraw, boss.x - 75, boss.y - 75, 150, 150);
+            else { ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2); ctx.fillStyle = boss.color; ctx.fill(); }
+        });
+        if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
+            if (imagesLoaded.neo) ctx.drawImage(imgNeo, wave3BossB.x - 75, wave3BossB.y - 75, 150, 150);
+            else { ctx.beginPath(); ctx.arc(wave3BossB.x, wave3BossB.y, bossRadius, 0, Math.PI * 2); ctx.fillStyle = '#ff4500'; ctx.fill(); }
+        }
+    }
 
-    const waymarkRadius = 18;
-    const waymarkOffset = mapRadius - 35;
-    const waymarks = [
-        { x: mapCenter.x, y: mapCenter.y - waymarkOffset, text: 'A', color: '#ff3333' },
-        { x: mapCenter.x + waymarkOffset, y: mapCenter.y, text: 'B', color: '#ffd700' },
-        { x: mapCenter.x, y: mapCenter.y + waymarkOffset, text: 'C', color: '#4cc9f0' },
-        { x: mapCenter.x - waymarkOffset, y: mapCenter.y, text: 'D', color: '#bf55ec' } 
-    ];
+    if (imagesLoaded.map) {
+        ctx.drawImage(imgMap, mapCenter.x - mapRadius, mapCenter.y - mapRadius, mapRadius * 2, mapRadius * 2);
+    } else {
+        ctx.beginPath(); ctx.arc(mapCenter.x, mapCenter.y, mapRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 5; ctx.stroke(); ctx.fillStyle = '#1a1a1a'; ctx.fill();
+    }
 
-    ctx.save();
-    waymarks.forEach(wm => {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.fillRect(wm.x - waymarkRadius, wm.y - waymarkRadius, waymarkRadius * 2, waymarkRadius * 2);
-        ctx.strokeStyle = wm.color; ctx.lineWidth = 2;
-        ctx.strokeRect(wm.x - waymarkRadius, wm.y - waymarkRadius, waymarkRadius * 2, waymarkRadius * 2);
-        ctx.fillStyle = wm.color; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(wm.text, wm.x, wm.y + 2);
-    });
-    ctx.restore();
 
     if (isGameStarted) {
-        if (bosses[0].isCasting) drawAoELayers(0.08, 0.12); 
-        else if (bossA_Gimmick.showAoE) drawAoELayers(0.35, 0.45); 
+        if (bosses[0].isCasting && bosses[0].castName !== "두근두근 알테마") drawAoELayers(0.40, 0.50); 
+        else if (bossA_Gimmick.showAoE) drawAoELayers(0.80, 0.85); 
         
-        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.12);
-        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.45);
+        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.40);
+        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.80);
 
-        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.12);
-        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.45);
+        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.40);
+        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.80);
 
         drawFinalMemoryAoE();
 
@@ -817,7 +851,7 @@ function draw() {
                 ctx.strokeStyle = '#ff4500';
                 ctx.lineWidth = 3;
                 if (aoe.shape === "CIRCLE") {
-                    ctx.beginPath(); ctx.arc(aoe.x, aoe.y, 120, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(aoe.x, aoe.y, 80, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
                 } else if (aoe.shape === "DONUT") {
                     ctx.beginPath(); ctx.arc(aoe.x, aoe.y, 220, 0, Math.PI * 2);
                     ctx.arc(aoe.x, aoe.y, 80, 0, Math.PI * 2, true); 
@@ -840,13 +874,19 @@ function draw() {
         if (currentWave === 3 && isSubBossesVanished && index > 0) return;
 
         let isInterfaceActive = boss.isCasting || (index === 0 && (thunderga_Gimmick.isCasting || blizzaga_Gimmick.isCasting || finalMemoryState.showRings)) || (boss.castCompleteTime && (Date.now() - boss.castCompleteTime < 2000));
-        ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2);
-        ctx.fillStyle = boss.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        if (index === 0) {
+            if (imagesLoaded.kefka) {
+                ctx.drawImage(imgKefka, boss.x - 75, boss.y - 95, 150, 150);
+            } else {
+                ctx.beginPath(); ctx.arc(boss.x, boss.y, bossRadius, 0, Math.PI * 2);
+                ctx.fillStyle = boss.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            }
+        }
 
         if (isInterfaceActive) {
             if (index === 0) {
                 if (finalMemoryState.showRings) drawFinalMemoryRings(boss.x, boss.y);
-                else drawCenterBossRings(boss.x, boss.y);
+                else if (boss.castName !== "두근두근 알테마") drawCenterBossRings(boss.x, boss.y);
             } else {
                 ctx.save(); ctx.translate(boss.x, boss.y);
                 const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
@@ -863,9 +903,11 @@ function draw() {
                 ctx.restore();
             }
             
-            const barW = 100; const barH = 10; const barX = boss.x - barW / 2; const barY = boss.y - bossRadius - 25;
+            const barW = 100; const barH = 10; const barX = boss.x - barW / 2; 
+            let barY = boss.y - bossRadius - 25;
+            if (index === 0) barY -= 30;
             
-            if (index === 1 && boss.isCasting) {
+            if (boss.isCasting && boss.castName) {
                 ctx.save(); ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
                 ctx.fillText(boss.castName, boss.x, barY - 5); ctx.restore();
             }
@@ -890,8 +932,7 @@ function draw() {
     });
 
     if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting) {
-        ctx.beginPath(); ctx.arc(wave3BossB.x, wave3BossB.y, bossRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff4500'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+        // Body is drawn before map
 
         ctx.save(); ctx.translate(wave3BossB.x, wave3BossB.y);
         const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
@@ -912,10 +953,13 @@ function draw() {
     }
 
     if (!player.isDead) {
-        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        let angle = Math.atan2(player.lastDy, player.lastDx);
+        ctx.beginPath();
+        ctx.moveTo(player.x + Math.cos(angle) * (player.radius * 1.5), player.y + Math.sin(angle) * (player.radius * 1.5));
+        ctx.lineTo(player.x + Math.cos(angle + 2.4) * player.radius, player.y + Math.sin(angle + 2.4) * player.radius);
+        ctx.lineTo(player.x + Math.cos(angle - 2.4) * player.radius, player.y + Math.sin(angle - 2.4) * player.radius);
+        ctx.closePath();
         ctx.fillStyle = player.color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(player.x + player.lastDx * 20, player.y + player.lastDy * 20);
-        ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.stroke();
     } else {
         ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 4; ctx.beginPath();
         ctx.moveTo(player.x - 15, player.y - 15); ctx.lineTo(player.x + 15, player.y + 15);
@@ -930,30 +974,63 @@ function draw() {
         
         
         if (showDebugText) {
-            let displayOffset = 80;
+            let guideLines = [];
             
-            let activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+            let envDebuffs = activeDebuffs.filter(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+            let activeEnv = envDebuffs.length > 0 ? envDebuffs.reduce((min, curr) => curr.timeLeft < min.timeLeft ? curr : min) : null;
             let envTime = activeEnv ? activeEnv.timeLeft : 0;
-
             if (activeEnv) {
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#00b4d8';
-                ctx.fillText(`(쉐어/산개 + 가속도 만료까지: ${envTime}초)`, 30, displayOffset);
-                displayOffset += 25;
+                let envDisplay = envTime >= 60 ? Math.floor(envTime/60) + 'm' : envTime + '초';
+                guideLines.push({ text: `(쉐어/산개 + 가속도 만료까지: ${envDisplay})`, color: '#00b4d8' });
             }
 
             let pendingEyes = backgroundEyes.filter(e => !e.processed);
             pendingEyes.forEach((pendingEye, idx) => {
                 let eyeTimeLeft = Math.max(pendingEye.initialDuration - Math.floor((Date.now() - pendingEye.assignTime)/1000), 0);
                 let eyeAction = pendingEye.rule === "진실" ? "안보기" : "보기";
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#bf55ec';
-                ctx.fillText(`(마안${pendingEye.wave} [${eyeAction}] 발동까지: ${eyeTimeLeft}초)`, 30, displayOffset);
-                displayOffset += 25;
+                let eyeDisplay = eyeTimeLeft >= 60 ? Math.floor(eyeTimeLeft/60) + 'm' : eyeTimeLeft + '초';
+                guideLines.push({ text: `(마안${pendingEye.wave} [${eyeAction}] 발동까지: ${eyeDisplay})`, color: '#bf55ec' });
             });
 
             if (thunderga_Gimmick.isCasting) {
-                ctx.font = '13px sans-serif'; ctx.fillStyle = '#ffd700';
-                ctx.fillText(`(중앙 보스 썬더가 캐스팅 중... [${thunderga_Gimmick.effect}])`, 30, displayOffset);
-                displayOffset += 25;
+                guideLines.push({ text: `(중앙 보스 썬더가 캐스팅 중... [${thunderga_Gimmick.effect}])`, color: '#ffd700' });
+            }
+
+            if (blizzaga_Gimmick.isCasting) {
+                guideLines.push({ text: `(중앙 보스 블리자가 캐스팅 중... [${blizzaga_Gimmick.effect}])`, color: '#00b4d8' });
+            }
+
+            if (pastThundergaTruth || pastBlizzagaTruth) {
+                let pThunder = pastThundergaTruth || "?";
+                let pBlizza = pastBlizzagaTruth || "?";
+                guideLines.push({ text: `(기억된 장판: 썬더가[${pThunder}] / 블리자가[${pBlizza}])`, color: '#ffffff' });
+            }
+
+            if (guideLines.length > 0) {
+                ctx.save();
+                ctx.font = 'bold 14px sans-serif';
+                let boxPadding = 15;
+                let lineHeight = 25;
+                let boxHeight = boxPadding * 2 + (guideLines.length - 1) * lineHeight + 14;
+                let maxTextWidth = Math.max(...guideLines.map(g => ctx.measureText(g.text).width));
+                let boxWidth = maxTextWidth + boxPadding * 2;
+                
+                let boxX = canvas.width - boxWidth - 20;
+                let boxY = canvas.height - boxHeight - 30;
+                
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+                
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                guideLines.forEach((g, i) => {
+                    ctx.fillStyle = g.color;
+                    ctx.fillText(g.text, boxX + boxWidth - boxPadding, boxY + boxPadding + i * lineHeight);
+                });
+                ctx.restore();
             }
         }
 
@@ -970,21 +1047,18 @@ function draw() {
     if (isGameStarted) {
         let visibleDebuffs = activeDebuffs.filter(d => !d.processed);
         if (visibleDebuffs.length > 0) {
-            const startX = 580; 
-            const startYRow1 = 410; 
-            const startYRow2 = 475; 
+            const debuffOrder = { "DEAD_SCAR": 1, "LIVE_SCAR": 1, "ALAG": 2, "TRANSCEND": 2, "EYE": 3, "THUNDER": 4, "WATER": 4, "BOMB": 5, "FLAME": 6, "FLOOD": 6 };
+            visibleDebuffs.sort((a, b) => (debuffOrder[a.type] || 99) - (debuffOrder[b.type] || 99));
+            
+            const rightMarginX = 760;
+            const gap = 42;          
+            const topStartX = rightMarginX - (visibleDebuffs.length - 1) * gap;
+            const topStartY = 30;
             const iconSize = 28; 
-            const gap = 36;          
 
-            let row1Count = 0;
-            let row2Count = 0;
-
-            visibleDebuffs.forEach((debuff) => {
-                let isRow2 = (debuff.row === 2);
-                let currentX = startX + ((isRow2 ? row2Count : row1Count) * gap);
-                let currentY = isRow2 ? startYRow2 : startYRow1;
-
-                if (isRow2) row2Count++; else row1Count++;
+            visibleDebuffs.forEach((debuff, index) => {
+                let currentX = topStartX + (index * gap);
+                let currentY = topStartY;
 
                 if (imagesLoaded[debuff.loadKey]) {
                     ctx.drawImage(debuff.img, currentX, currentY, iconSize, iconSize);
@@ -1018,18 +1092,31 @@ function draw() {
                     else if (textResult === "STOP") { krWord = "멈추기"; ctx.fillStyle = '#ff4444'; }
                     else if (textResult === "물압축") { krWord = "물압축"; ctx.fillStyle = '#00b4d8'; }
                     else if (textResult === "갈래번개") { krWord = "갈래번개"; ctx.fillStyle = '#bf55ec'; }
-                    else if (textResult === "해일") { krWord = `해일[${debuff.rule}]`; ctx.fillStyle = '#00b4d8'; } 
-                    else if (textResult === "불꽃") { krWord = `불꽃[${debuff.rule}]`; ctx.fillStyle = '#ff4500'; } 
+                    else if (textResult === "해일") { krWord = `[${debuff.rule === "진실" ? "도넛" : "원형"}]`; ctx.fillStyle = '#00b4d8'; } 
+                    else if (textResult === "화염") { krWord = `[${debuff.rule === "진실" ? "원형" : "도넛"}]`; ctx.fillStyle = '#ff4500'; } 
                     else if (textResult === "파란맞기") { krWord = "파란 장판 피격"; ctx.fillStyle = '#00b4d8'; }
                     else if (textResult === "분홍맞기") { krWord = "분홍 장판 피격"; ctx.fillStyle = '#ff69b4'; }
                     else if (textResult === "CALC") { krWord = "보스 분석 중..."; ctx.fillStyle = '#bbb'; }
 
-                    ctx.fillText(krWord, currentX + iconSize/2, currentY - 10); ctx.restore();
+                    let textX = currentX + iconSize/2;
+                    if (textResult === "파란맞기" || textResult === "분홍맞기" || textResult === "CALC") {
+                        if (debuff.type === "DEAD_SCAR" || debuff.type === "LIVE_SCAR") {
+                            textX = currentX + iconSize/2 + gap/2;
+                        } else if (debuff.type === "ALAG" || debuff.type === "TRANSCEND") {
+                            krWord = "";
+                        }
+                    }
+
+                    if (krWord !== "") {
+                        ctx.fillText(krWord, textX, currentY - 10);
+                    }
+                    ctx.restore();
                 }
 
                 ctx.save(); ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-                ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeText(debuff.timeLeft, currentX + iconSize/2, currentY + iconSize + 15);
-                ctx.fillStyle = '#ffffff'; ctx.fillText(debuff.timeLeft, currentX + iconSize/2, currentY + iconSize + 15); ctx.restore();
+                let tDisp = debuff.timeLeft >= 60 ? Math.floor(debuff.timeLeft/60) + 'm' : debuff.timeLeft;
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeText(tDisp, currentX + iconSize/2, currentY + iconSize + 15);
+                ctx.fillStyle = '#ffffff'; ctx.fillText(tDisp, currentX + iconSize/2, currentY + iconSize + 15); ctx.restore();
             });
         }
     }
@@ -1143,7 +1230,7 @@ function update() {
                 wave3TimelineState = "POPUP";
                 const random8Index = Math.floor(Math.random() * 8);
                 const randomAngle = (random8Index * Math.PI) / 4;
-                const spawnRadius = mapRadius - 30;
+                const spawnRadius = mapRadius + 20;
                 let bossTruthRule = effectTypes[Math.floor(Math.random() * 2)];
 
                 wave3BossB = {
@@ -1155,7 +1242,8 @@ function update() {
                     duration: 5000, 
                     progress: 0,
                     showAoE: true,
-                    currentEffect: bossTruthRule 
+                    currentEffect: bossTruthRule,
+                    isPinkRight: Math.random() < 0.5
                 };
             }
         }
@@ -1231,9 +1319,13 @@ function update() {
             if (boss.progress >= 1) {
                 boss.isCasting = false; boss.castCompleteTime = now;
                 if (index === 0) {
-                    bossA_Gimmick.showAoE = true; bossA_Gimmick.aoeStartTime = now; checkSafety(); 
-                    if (!player.isDead && currentWave < 3) { 
-                        bosses[1].startTime = now; bosses[1].progress = 0; bosses[1].isCasting = true; bosses[1].castCompleteTime = null; 
+                    if (boss.castName === "두근두근 알테마") {
+                        boss.castName = "";
+                    } else {
+                        bossA_Gimmick.showAoE = true; bossA_Gimmick.aoeStartTime = now; checkSafety(); 
+                        if (!player.isDead && currentWave < 3) { 
+                            bosses[1].startTime = now; bosses[1].progress = 0; bosses[1].isCasting = true; bosses[1].castCompleteTime = null; 
+                        }
                     }
                 }
                 if (index === 1 && !player.isDead) {
