@@ -69,6 +69,13 @@
             gap: 36px;
             margin-bottom: 48px;
         }
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 24px;
+        }
         .lang-btn,
         .start-btn {
             border: 2px solid rgba(255,255,255,0.35);
@@ -86,6 +93,23 @@
         .lang-btn.active {
             background: #4cc9f0;
             border-color: #fff;
+        }
+        .role-btn {
+            min-width: 0;
+            height: 36px;
+            padding: 0 6px;
+            border: 2px solid rgba(255,255,255,0.28);
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 13px;
+            transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+        }
+        .role-btn.active {
+            background: #6dd6ff;
+            border-color: #fff;
+            color: #07111d;
         }
         .start-btn {
             width: 120px;
@@ -137,6 +161,8 @@
                     <button class="lang-btn" id="langKo" type="button">한국어</button>
                     <button class="lang-btn" id="langJa" type="button">日本語</button>
                 </div>
+                <div class="lang-label" id="rolePrompt"></div>
+                <div class="role-grid" id="roleGrid"></div>
                 <button class="start-btn" id="startGameButton" type="button"></button>
                 <div class="start-keys" id="startKeys"></div>
                 <div class="start-hint" id="startHint"></div>
@@ -163,6 +189,8 @@ const startTitle = document.getElementById('startTitle');
 const languagePrompt = document.getElementById('languagePrompt');
 const langKoButton = document.getElementById('langKo');
 const langJaButton = document.getElementById('langJa');
+const rolePrompt = document.getElementById('rolePrompt');
+const roleGrid = document.getElementById('roleGrid');
 const startGameButton = document.getElementById('startGameButton');
 const startKeys = document.getElementById('startKeys');
 const startHint = document.getElementById('startHint');
@@ -170,6 +198,33 @@ const creditsLine = document.getElementById('creditsLine');
 const contactLine = document.getElementById('contactLine');
 
 const LANGUAGE_STORAGE_KEY = 'kefka4sim.language';
+const ROLE_STORAGE_KEY = 'kefka4sim.role';
+const PARTY_ROLE_OPTIONS = ['mt', 'st', 'h1', 'h2', 'd1', 'd2', 'd3', 'd4'];
+const PARTY_ROLE_GROUP = {
+    mt: 'tank',
+    st: 'tank',
+    h1: 'healer',
+    h2: 'healer',
+    d1: 'dps',
+    d2: 'dps',
+    d3: 'dps',
+    d4: 'dps'
+};
+const PARTY_ROLE_COLORS = {
+    tank: '#6dd6ff',
+    healer: '#7ef29a',
+    dps: '#ff6b6b'
+};
+const PARTY_ROLE_LABELS = {
+    mt: 'MT',
+    st: 'ST',
+    h1: 'H1',
+    h2: 'H2',
+    d1: 'D1',
+    d2: 'D2',
+    d3: 'D3',
+    d4: 'D4'
+};
 const SUPPORTED_LANGUAGES = {
     ko: { label: '한국어' },
     ja: { label: '日本語' }
@@ -181,6 +236,7 @@ const TEXTS = {
             title: '4페이즈 연습 시뮬레이션',
             startTitle: '4페이즈 연습 시뮬레이션',
             languagePrompt: '언어를 선택하세요',
+            rolePrompt: '자신의 역할을 선택하세요',
             startHint: "게임 도중 'P' 키를 누르면 언제든 일시정지 할 수 있습니다.",
             startKeys: 'WASD키로 조작 / 마우스로도 조작 가능',
             watchHint: '확인: {hint}',
@@ -190,8 +246,10 @@ const TEXTS = {
             retry: '다시 도전하기',
             guideOn: '가이드 ON',
             guideOff: '가이드 OFF',
+            watchHint: '확인: {hint}',
             reset: '전투 리셋',
             battleTime: '전투 진행 시간',
+            myRole: '내 역할: {role}',
             timeUnit: '초',
             paused: 'PAUSED',
             deathPrefix: '사망 원인: ',
@@ -242,6 +300,7 @@ const TEXTS = {
             title: '絶・妖精乱舞 P4(ネオエクスデス&カオス) イメトレ用シミュレータ',
             startTitle: '絶・妖精乱舞 P4\n(ネオエクスデス&カオス)\nイメトレ用シミュレータ',
             languagePrompt: '言語を選択してください',
+            rolePrompt: '自分のロールを選択してください',
             startHint: "ゲーム中に 'P' キーを押すといつでも一時停止できます。",
             startKeys: 'WASDキーで操作 / マウスでも操作可',
             watchHint: '確認: {hint}',
@@ -251,8 +310,10 @@ const TEXTS = {
             retry: 'もう一度挑戦',
             guideOn: 'ガイド ON',
             guideOff: 'ガイド OFF',
+            watchHint: '確認: {hint}',
             reset: '戦闘リセット',
             battleTime: '戦闘経過時間',
+            myRole: '自分のロール: {role}',
             timeUnit: '秒',
             paused: 'PAUSED',
             deathPrefix: '死亡原因: ',
@@ -301,6 +362,7 @@ const TEXTS = {
 };
 
 let currentLanguage = 'ko';
+let currentRole = 'mt';
 try {
     const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
     if (SUPPORTED_LANGUAGES[storedLanguage]) currentLanguage = storedLanguage;
@@ -315,6 +377,12 @@ try {
         ? navigator.languages[0]
         : navigator.language;
     currentLanguage = typeof browserLanguage === 'string' && browserLanguage.toLowerCase().startsWith('ja') ? 'ja' : 'ko';
+}
+try {
+    const storedRole = localStorage.getItem(ROLE_STORAGE_KEY);
+    if (PARTY_ROLE_OPTIONS.includes(storedRole)) currentRole = storedRole;
+} catch (err) {
+    // localStorage may be unavailable for file:// access.
 }
 document.documentElement.lang = currentLanguage;
 document.title = t('ui.title');
@@ -343,10 +411,23 @@ function setLanguage(nextLanguage) {
     }
 }
 
+function setRole(nextRole) {
+    if (!PARTY_ROLE_OPTIONS.includes(nextRole)) return;
+    currentRole = nextRole;
+    syncPlayerAppearance();
+    syncStartOverlay();
+    try {
+        localStorage.setItem(ROLE_STORAGE_KEY, nextRole);
+    } catch (err) {
+        // localStorage may be unavailable for file:// access.
+    }
+}
+
 function syncStartOverlay() {
     if (!startOverlay) return;
     startTitle.textContent = t('ui.startTitle');
     languagePrompt.textContent = t('ui.languagePrompt');
+    rolePrompt.textContent = t('ui.rolePrompt');
     startGameButton.textContent = t('ui.start');
     startKeys.textContent = t('ui.startKeys');
     startHint.textContent = t('ui.startHint');
@@ -354,6 +435,15 @@ function syncStartOverlay() {
     contactLine.innerHTML = t('ui.contact');
     langKoButton.classList.toggle('active', currentLanguage === 'ko');
     langJaButton.classList.toggle('active', currentLanguage === 'ja');
+    if (roleGrid) {
+        roleGrid.innerHTML = PARTY_ROLE_OPTIONS.map(role => {
+            const active = role === currentRole ? ' active' : '';
+            return `<button class="role-btn${active}" type="button" data-role="${role}">${PARTY_ROLE_LABELS[role]}</button>`;
+        }).join('');
+        roleGrid.querySelectorAll('[data-role]').forEach(button => {
+            button.addEventListener('click', () => setRole(button.dataset.role));
+        });
+    }
 }
 
 langKoButton.addEventListener('click', () => setLanguage('ko'));
@@ -555,7 +645,7 @@ const player = {
     x: 400,
     y: 550,
     radius: 12, 
-    speed: 4,
+    speed: 1.4,
     color: '#00ffcc',
     isDead: false,
     facingX: 0,
@@ -735,6 +825,16 @@ function setPlayerFacing(dx, dy) {
     player.facingCardinal = facingCardinalFor(vector.x, vector.y);
 }
 
+function getRoleColor(role) {
+    const group = PARTY_ROLE_GROUP[role] || 'dps';
+    return PARTY_ROLE_COLORS[group] || PARTY_ROLE_COLORS.dps;
+}
+
+function syncPlayerAppearance() {
+    player.role = currentRole;
+    player.color = getRoleColor(currentRole);
+}
+
 function pointOnRing(angleDeg, radius) {
     const angle = angleDeg * Math.PI / 180;
     return {
@@ -745,82 +845,6 @@ function pointOnRing(angleDeg, radius) {
 
 function offsetPoint(point, dx, dy) {
     return { x: point.x + dx, y: point.y + dy };
-}
-
-function buildPartyFormation(mode) {
-    const ringRadius = mapRadius - 95;
-    const supportColor = '#6dd6ff';
-    const dpsColor = '#d18bff';
-    const stackOffsets = [
-        [-12, -12],
-        [12, -12],
-        [-12, 12],
-        [12, 12]
-    ];
-    const pairOffsets = [
-        [-10, 0],
-        [10, 0]
-    ];
-
-    if (mode === 'STACK') {
-        const topAnchor = pointOnRing(-90, ringRadius);
-        const bottomAnchor = pointOnRing(90, ringRadius);
-        return [
-            ...stackOffsets.map((offset, idx) => ({
-                id: `stack-top-${idx + 1}`,
-                label: `${idx + 1}`,
-                color: supportColor,
-                x: offsetPoint(topAnchor, offset[0], offset[1]).x,
-                y: offsetPoint(topAnchor, offset[0], offset[1]).y
-            })),
-            ...stackOffsets.map((offset, idx) => ({
-                id: `stack-bottom-${idx + 5}`,
-                label: `${idx + 5}`,
-                color: dpsColor,
-                x: offsetPoint(bottomAnchor, offset[0], offset[1]).x,
-                y: offsetPoint(bottomAnchor, offset[0], offset[1]).y
-            }))
-        ];
-    }
-
-    const upperLeft = pointOnRing(-120, ringRadius);
-    const upperRight = pointOnRing(-60, ringRadius);
-    const lowerLeft = pointOnRing(120, ringRadius);
-    const lowerRight = pointOnRing(60, ringRadius);
-    return [
-        ...pairOffsets.map((offset, idx) => ({
-            id: `spread-support-left-${idx + 1}`,
-            label: `${idx + 1}`,
-            color: supportColor,
-            x: offsetPoint(upperLeft, offset[0], offset[1]).x,
-            y: offsetPoint(upperLeft, offset[0], offset[1]).y
-        })),
-        ...pairOffsets.map((offset, idx) => ({
-            id: `spread-support-right-${idx + 3}`,
-            label: `${idx + 3}`,
-            color: supportColor,
-            x: offsetPoint(upperRight, offset[0], offset[1]).x,
-            y: offsetPoint(upperRight, offset[0], offset[1]).y
-        })),
-        ...pairOffsets.map((offset, idx) => ({
-            id: `spread-dps-left-${idx + 5}`,
-            label: `${idx + 5}`,
-            color: dpsColor,
-            x: offsetPoint(lowerLeft, offset[0], offset[1]).x,
-            y: offsetPoint(lowerLeft, offset[0], offset[1]).y
-        })),
-        ...pairOffsets.map((offset, idx) => ({
-            id: `spread-dps-right-${idx + 7}`,
-            label: `${idx + 7}`,
-            color: dpsColor,
-            x: offsetPoint(lowerRight, offset[0], offset[1]).x,
-            y: offsetPoint(lowerRight, offset[0], offset[1]).y
-        }))
-    ];
-}
-
-function pointNearSlots(point, slots, tolerance = 22) {
-    return slots.some(slot => Math.hypot(point.x - slot.x, point.y - slot.y) <= tolerance);
 }
 
 function getActiveFormationMode() {
@@ -835,67 +859,492 @@ function getActiveFormationMode() {
     return null;
 }
 
-function getFormationSelfSlotIndex(slots) {
-    let bestIndex = 0;
-    let bestDistance = Infinity;
-    slots.forEach((slot, index) => {
-        const distance = Math.hypot(player.x - slot.x, player.y - slot.y);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            bestIndex = index;
-        }
+function getIdlePartyTargets() {
+    const ringRadius = mapRadius - 88;
+    return {
+        mt: pointOnRing(-90, ringRadius),
+        st: pointOnRing(-45, ringRadius),
+        h1: pointOnRing(-135, ringRadius),
+        h2: pointOnRing(0, ringRadius),
+        d1: pointOnRing(135, ringRadius),
+        d2: pointOnRing(45, ringRadius),
+        d3: pointOnRing(180, ringRadius),
+        d4: pointOnRing(90, ringRadius)
+    };
+}
+
+function getPartyTargets(mode) {
+    const idleTargets = getIdlePartyTargets();
+    if (mode === 'IDLE') return idleTargets;
+
+    const supportRoles = ['mt', 'h1', 'st', 'h2'];
+    const dpsRoles = ['d1', 'd3', 'd2', 'd4'];
+    const targetMap = {};
+    const offsets = [
+        [-14, -10],
+        [14, -10],
+        [-14, 10],
+        [14, 10]
+    ];
+
+    if (mode === 'STACK') {
+        const supportAnchor = pointOnRing(-90, mapRadius - 92);
+        const dpsAnchor = pointOnRing(90, mapRadius - 92);
+        supportRoles.forEach((role, index) => {
+            targetMap[role] = offsetPoint(supportAnchor, offsets[index][0], offsets[index][1]);
+        });
+        dpsRoles.forEach((role, index) => {
+            targetMap[role] = offsetPoint(dpsAnchor, offsets[index][0], offsets[index][1]);
+        });
+        return targetMap;
+    }
+
+    const supportLeft = pointOnRing(-120, mapRadius - 92);
+    const supportRight = pointOnRing(-60, mapRadius - 92);
+    const dpsLeft = pointOnRing(120, mapRadius - 92);
+    const dpsRight = pointOnRing(60, mapRadius - 92);
+
+    [
+        [supportRoles[0], supportLeft, [-10, -8]],
+        [supportRoles[1], supportLeft, [-10, 8]],
+        [supportRoles[2], supportRight, [10, -8]],
+        [supportRoles[3], supportRight, [10, 8]],
+        [dpsRoles[0], dpsLeft, [-10, -8]],
+        [dpsRoles[1], dpsLeft, [-10, 8]],
+        [dpsRoles[2], dpsRight, [10, -8]],
+        [dpsRoles[3], dpsRight, [10, 8]]
+    ].forEach(([role, anchor, offset]) => {
+        targetMap[role] = offsetPoint(anchor, offset[0], offset[1]);
     });
-    return bestIndex;
+
+    return targetMap;
+}
+
+function getStackTelegraphTargets() {
+    const stackRadius = mapRadius - 92;
+    return {
+        tankHealer: pointOnRing(-90, stackRadius),
+        dps: pointOnRing(90, stackRadius)
+    };
+}
+
+function getPendingShareDebuff() {
+    const candidate = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER") && !d.processed && d.timeLeft <= 2);
+    if (!candidate) return null;
+    const isShare = candidate.type === "WATER" ? candidate.rule === "진실" : candidate.rule !== "진실";
+    return isShare ? candidate : null;
+}
+
+function getGuideHintText() {
+    const pendingShare = getPendingShareDebuff();
+    if (pendingShare) {
+        return currentLanguage === 'ja' ? '頭割りデバフを見る' : '쉐어 디버프 확인';
+    }
+
+    if (currentWave === 3) {
+        const colorDebuff = activeDebuffs.find(d => d.type === "DEAD_SCAR" || d.type === "LIVE_SCAR");
+        const hitDebuff = activeDebuffs.find(d => d.type === "ALAG" || d.type === "TRANSCEND");
+        if (colorDebuff && hitDebuff) {
+            return currentLanguage === 'ja' ? '青/ピンクのデバフとアラガンを見る' : '파란/분홍 디버프와 아라간 확인';
+        }
+    }
+
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+    if (activeEnv) {
+        if (activeEnv.type === "BOMB") {
+            return currentLanguage === 'ja' ? '加速度爆弾を見る' : '가속도 폭탄 확인';
+        }
+        return currentLanguage === 'ja' ? '水/雷デバフを見る' : '물/번개 디버프 확인';
+    }
+
+    const pendingEye = backgroundEyes.find(e => !e.processed);
+    if (pendingEye) {
+        return currentLanguage === 'ja' ? '目の真偽を見る' : '눈 진위 확인';
+    }
+
+    if (thunderga_Gimmick.isCasting || blizzaga_Gimmick.isCasting || finalMemoryState.isCasting) {
+        return currentLanguage === 'ja' ? '中央ボスの詠唱を見る' : '중앙 보스 캐스팅 확인';
+    }
+
+    return currentLanguage === 'ja' ? '次のデバフを確認' : '다음 디버프 확인';
+}
+
+function getWave3SplitStatus() {
+    if (currentWave !== 3) return null;
+    const colorDebuff = activeDebuffs.find(d => d.type === "DEAD_SCAR" || d.type === "LIVE_SCAR");
+    const hitDebuff = activeDebuffs.find(d => d.type === "ALAG" || d.type === "TRANSCEND");
+    if (!colorDebuff || !hitDebuff) return null;
+
+    const isBlueScar = colorDebuff.type === "DEAD_SCAR";
+    let isAlagField = hitDebuff.type === "ALAG";
+    const isBossTruth = (wave3BossB.currentEffect === "진실");
+    if (!isBossTruth) isAlagField = !isAlagField;
+
+    const standColor = isAlagField
+        ? (isBlueScar ? "PINK" : "BLUE")
+        : (isBlueScar ? "BLUE" : "PINK");
+
+    return {
+        colorDebuff,
+        hitDebuff,
+        standColor,
+        isBlueScar,
+        isAlagField
+    };
+}
+
+function debuffLabelFor(type) {
+    switch (type) {
+        case "DEAD_SCAR": return currentLanguage === 'ja' ? '青デバフ' : '파란 디버프';
+        case "LIVE_SCAR": return currentLanguage === 'ja' ? 'ピンクデバフ' : '분홍 디버프';
+        case "ALAG": return currentLanguage === 'ja' ? 'アラガンフィールド' : '아라간필드';
+        case "TRANSCEND": return currentLanguage === 'ja' ? '死の超越' : '죽음의 초월';
+        default: return type;
+    }
+}
+
+function getDebuffImageForType(type) {
+    switch (type) {
+        case "DEAD_SCAR": return imgDeadScar;
+        case "LIVE_SCAR": return imgLiveScar;
+        case "ALAG": return imgAlag;
+        case "TRANSCEND": return imgTranscend;
+        default: return null;
+    }
+}
+
+function drawDebuffHintRow(x, y, type, detailText, accentColor) {
+    const iconSize = 26;
+    const img = getDebuffImageForType(type);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillRect(x, y, 280, 34);
+
+    if (img && imagesLoaded[img === imgDeadScar ? 'deadScar' : img === imgLiveScar ? 'liveScar' : img === imgAlag ? 'alag' : 'transcend']) {
+        ctx.drawImage(img, x + 4, y + 4, iconSize, iconSize);
+    } else {
+        ctx.fillStyle = accentColor;
+        ctx.fillRect(x + 4, y + 4, iconSize, iconSize);
+    }
+
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = accentColor;
+    ctx.fillText(`${debuffLabelFor(type)}: ${detailText}`, x + 38, y + 17);
+    ctx.restore();
+}
+
+function drawGuideHintPanel(x, y, width) {
+    const panelWidth = width || 300;
+    const padding = 12;
+    const lineHeight = 22;
+    const lines = [];
+
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER" || d.type === "BOMB") && !d.processed);
+    const envTime = activeEnv ? activeEnv.timeLeft : 0;
+    const pendingEyes = backgroundEyes.filter(e => !e.processed);
+    const guideHint = getGuideHintText();
+
+    lines.push({ text: t('ui.watchHint', { hint: guideHint }), color: '#9ee7ff' });
+
+    if (activeEnv) {
+        lines.push({ text: t('ui.guideTimer', { seconds: envTime }), color: '#00b4d8' });
+    }
+
+    pendingEyes.forEach(pendingEye => {
+        const eyeTimeLeft = Math.max(pendingEye.initialDuration - Math.floor((Date.now() - pendingEye.assignTime) / 1000), 0);
+        const eyeAction = pendingEye.rule === "진실" ? t('action.hide') : t('action.look');
+        lines.push({ text: t('ui.eyeTimer', { wave: pendingEye.wave, action: eyeAction, seconds: eyeTimeLeft }), color: '#bf55ec' });
+    });
+
+    if (thunderga_Gimmick.isCasting) {
+        lines.push({ text: t('ui.thunderCasting', { effect: effectLabel(thunderga_Gimmick.effect) }), color: '#ffd700' });
+    }
+
+    const splitStatus = getWave3SplitStatus();
+    const splitSectionHeight = splitStatus ? 86 : 0;
+    if (lines.length === 0 && !splitStatus) return;
+
+    const totalHeight = padding * 2 + lines.length * lineHeight + splitSectionHeight;
+    const startX = Math.max(12, x - panelWidth);
+    const startY = Math.max(12, y - totalHeight);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillRect(startX, startY, panelWidth, totalHeight);
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    lines.forEach((line, index) => {
+        ctx.fillStyle = line.color;
+        ctx.fillText(line.text, startX + padding, startY + padding + lineHeight * index + lineHeight / 2);
+    });
+
+    if (splitStatus) {
+        const splitTop = startY + padding + lines.length * lineHeight + 8;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(currentLanguage === 'ja' ? '自分の3回目デバフ' : '내 3회차 디버프', startX + padding, splitTop + 2);
+
+        const colorText = splitStatus.isBlueScar
+            ? (currentLanguage === 'ja' ? '青デバフ' : '파란 디버프')
+            : (currentLanguage === 'ja' ? 'ピンクデバフ' : '분홍 디버프');
+        const hitText = splitStatus.isAlagField
+            ? (currentLanguage === 'ja' ? 'アラガンフィールド' : '아라간필드')
+            : (currentLanguage === 'ja' ? '死の超越' : '죽음의 초월');
+        const standText = splitStatus.standColor === "BLUE"
+            ? (currentLanguage === 'ja' ? '立つ床: 青' : '서야 할 바닥: 파랑')
+            : (currentLanguage === 'ja' ? '立つ床: ピンク' : '서야 할 바닥: 분홍');
+
+        drawDebuffHintRow(startX + padding - 4, splitTop + 18, splitStatus.colorDebuff.type, colorText, splitStatus.isBlueScar ? '#4cc9f0' : '#ff69b4');
+        drawDebuffHintRow(startX + padding - 4, splitTop + 52, splitStatus.hitDebuff.type, hitText, splitStatus.isAlagField ? '#ffb347' : '#8ecae6');
+
+        ctx.fillStyle = splitStatus.standColor === "BLUE" ? '#4cc9f0' : '#ff69b4';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(standText, startX + padding, splitTop + 83);
+    }
+    ctx.restore();
+}
+
+function getGhostMovementDeadline(mode) {
+    const deadlines = [];
+    const activeEnv = activeDebuffs.find(d => (d.type === "WATER" || d.type === "THUNDER") && !d.processed);
+    if (mode === 'STACK' || mode === 'SPREAD') {
+        if (activeEnv) deadlines.push(activeEnv.assignTime + activeEnv.initialDuration * 1000);
+    }
+
+    if (bosses[0].isCasting && bosses[0].startTime != null) {
+        deadlines.push(bosses[0].startTime + bosses[0].duration);
+    }
+    if (thunderga_Gimmick.isCasting && thunderga_Gimmick.startTime != null) {
+        deadlines.push(thunderga_Gimmick.startTime + thunderga_Gimmick.duration);
+    }
+    if (blizzaga_Gimmick.isCasting && blizzaga_Gimmick.startTime != null) {
+        deadlines.push(blizzaga_Gimmick.startTime + blizzaga_Gimmick.duration);
+    }
+    if (finalMemoryState.isCasting && finalMemoryState.castStartTime != null) {
+        deadlines.push(finalMemoryState.castStartTime + 3000);
+    }
+    if (currentWave === 3 && wave3TimelineState === "POPUP" && wave3BossB.isCasting && wave3BossB.startTime != null) {
+        deadlines.push(wave3BossB.startTime + wave3BossB.duration);
+    }
+
+    if (deadlines.length === 0) return null;
+    return Math.min(...deadlines);
+}
+
+function isNearPoint(point, target, tolerance = 22) {
+    return !!point && !!target && Math.hypot(point.x - target.x, point.y - target.y) <= tolerance;
+}
+
+function moveTowardPoint(entity, target, speed) {
+    if (!entity || !target) return;
+    const dx = target.x - entity.x;
+    const dy = target.y - entity.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= speed || distance === 0) {
+        entity.x = target.x;
+        entity.y = target.y;
+        return;
+    }
+    entity.x += (dx / distance) * speed;
+    entity.y += (dy / distance) * speed;
+}
+
+function pointInBossAAoE(point) {
+    const px = point.x - mapCenter.x;
+    const py = point.y - mapCenter.y;
+    let inBlizzardAoE = false;
+    if (bossA_Gimmick.blizzardPattern === 0) {
+        if ((px >= 0 && py <= 0) || (px <= 0 && py >= 0)) inBlizzardAoE = true;
+    } else {
+        if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
+    }
+    let inThunderAoE = false;
+    const rotX = (px - py) / Math.sqrt(2);
+    const rotY = (px + py) / Math.sqrt(2);
+    const w = 175;
+    switch (bossA_Gimmick.thunderPattern) {
+        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2 * w)) inThunderAoE = true; break;
+        case 1: if ((rotX >= -2 * w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
+        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2 * w)) inThunderAoE = true; break;
+        case 3: if ((rotY >= -2 * w && rotY < -w) || (rotY >= 0 && rotY < w)) inThunderAoE = true; break;
+    }
+    return { inBlizzardAoE, inThunderAoE };
+}
+
+function pointInThundergaAoE(point, gimmick) {
+    const px = point.x - mapCenter.x;
+    const py = point.y - mapCenter.y;
+    let inThundergaAoE = false;
+    const rotX = (px - py) / Math.sqrt(2);
+    const rotY = (px + py) / Math.sqrt(2);
+    const w = 175;
+    switch (gimmick.thunderPattern) {
+        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2 * w)) inThundergaAoE = true; break;
+        case 1: if ((rotX >= -2 * w && rotX < -w) || (rotX >= 0 && rotX < w)) inThundergaAoE = true; break;
+        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2 * w)) inThundergaAoE = true; break;
+        case 3: if ((rotY >= -2 * w && rotY < -w) || (rotY >= 0 && rotY < w)) inThundergaAoE = true; break;
+    }
+    return inThundergaAoE;
+}
+
+function pointInBlizzagaAoE(point, gimmick) {
+    const px = point.x - mapCenter.x;
+    const py = point.y - mapCenter.y;
+    if (gimmick.blizzardPattern === 0) {
+        return (px >= 0 && py <= 0) || (px <= 0 && py >= 0);
+    }
+    return (px <= 0 && py <= 0) || (px >= 0 && py >= 0);
+}
+
+function isPointSafeFromCentralBoss(point) {
+    if (bosses[0].isCasting || bossA_Gimmick.showAoE) {
+        const currentAoE = pointInBossAAoE(point);
+        if ((bossA_Gimmick.bottomEffect.includes('진실') ? currentAoE.inBlizzardAoE : !currentAoE.inBlizzardAoE) ||
+            (bossA_Gimmick.topEffect.includes('진실') ? currentAoE.inThunderAoE : !currentAoE.inThunderAoE)) {
+            return false;
+        }
+    }
+
+    if (thunderga_Gimmick.isCasting || thunderga_Gimmick.showAoE) {
+        const inThundergaAoE = pointInThundergaAoE(point, thunderga_Gimmick);
+        const isTruth = (thunderga_Gimmick.effect === "진실");
+        if (isTruth ? inThundergaAoE : !inThundergaAoE) return false;
+    }
+
+    if (blizzaga_Gimmick.isCasting || blizzaga_Gimmick.showAoE) {
+        const inBlizzagaAoE = pointInBlizzagaAoE(point, blizzaga_Gimmick);
+        const isTruth = (blizzaga_Gimmick.effect === "진실");
+        if (isTruth ? inBlizzagaAoE : !inBlizzagaAoE) return false;
+    }
+
+    if (finalMemoryState.isCasting) {
+        const inThundergaAoE = pointInThundergaAoE(point, finalMemoryState);
+        const inBlizzagaAoE = pointInBlizzagaAoE(point, finalMemoryState);
+        const futureThundergaVal = finalMemoryState.topTruth === '진실' ? 1 : -1;
+        const futureBlizzagaVal = finalMemoryState.bottomTruth === '진실' ? 1 : -1;
+        const futureThundergaResult = futureThundergaVal === 1 ? inThundergaAoE : !inThundergaAoE;
+        const futureBlizzagaResult = futureBlizzagaVal === 1 ? inBlizzagaAoE : !inBlizzagaAoE;
+        if (futureThundergaResult || futureBlizzagaResult) return false;
+    }
+
+    return true;
+}
+
+function getGhostFallbackTargets(mode) {
+    const fallbackMode = mode || 'IDLE';
+    const modeTargets = getPartyTargets(fallbackMode);
+    const idleTargets = getIdlePartyTargets();
+    const ringRadius = mapRadius - 88;
+    const ringAngles = [-90, -45, 0, 45, 90, 135, 180, -135];
+    const ringPoints = ringAngles.map(angle => pointOnRing(angle, ringRadius));
+    return [
+        modeTargets.mt, modeTargets.st, modeTargets.h1, modeTargets.h2,
+        modeTargets.d1, modeTargets.d2, modeTargets.d3, modeTargets.d4,
+        idleTargets.mt, idleTargets.st, idleTargets.h1, idleTargets.h2,
+        idleTargets.d1, idleTargets.d2, idleTargets.d3, idleTargets.d4,
+        ...ringPoints
+    ].filter(Boolean);
+}
+
+function pickGhostTarget(ghost, mode) {
+    const targetMap = getPartyTargets(mode || 'IDLE');
+    const homeTarget = targetMap[ghost.role] || getIdlePartyTargets()[ghost.role];
+    if (isPointSafeFromCentralBoss(homeTarget)) {
+        return homeTarget;
+    }
+
+    const candidates = getGhostFallbackTargets(mode || 'IDLE').filter((candidate, index, list) =>
+        list.findIndex(other => other.x === candidate.x && other.y === candidate.y) === index
+    );
+    const safeCandidates = candidates.filter(candidate => isPointSafeFromCentralBoss(candidate));
+    if (safeCandidates.length === 0) {
+        return homeTarget;
+    }
+
+    safeCandidates.sort((a, b) => {
+        const aHome = Math.hypot(a.x - homeTarget.x, a.y - homeTarget.y);
+        const bHome = Math.hypot(b.x - homeTarget.x, b.y - homeTarget.y);
+        const aGhost = Math.hypot(a.x - ghost.x, a.y - ghost.y);
+        const bGhost = Math.hypot(b.x - ghost.x, b.y - ghost.y);
+        return (aHome + aGhost * 0.35) - (bHome + bGhost * 0.35);
+    });
+    return safeCandidates[0];
 }
 
 function rebuildPartyGhosts(mode) {
-    if (!mode) {
-        partyFormationSession = null;
-        partyGhosts = [];
+    const targetMode = mode || 'IDLE';
+    const targetMap = getPartyTargets(targetMode);
+    const nonSelfRoles = PARTY_ROLE_OPTIONS.filter(role => role !== currentRole);
+
+    if (!partyFormationSession || partyGhosts.length !== nonSelfRoles.length) {
+        partyFormationSession = { mode: targetMode, role: currentRole };
+        partyGhosts = nonSelfRoles.map((role, index) => {
+            const target = targetMap[role] || getIdlePartyTargets()[role];
+            return {
+                id: `ghost-${role}`,
+                role,
+                label: PARTY_ROLE_LABELS[role],
+                color: getRoleColor(role),
+                x: target.x,
+                y: target.y,
+                targetX: target.x,
+                targetY: target.y,
+                alpha: 0.85,
+                readyAt: Date.now() + index * 60
+            };
+        });
         return;
     }
 
-    const slots = buildPartyFormation(mode);
-
-    if (!partyFormationSession || partyFormationSession.mode !== mode) {
-        const selfSlotIndex = getFormationSelfSlotIndex(slots);
-        const ghostSlots = slots.filter((_, index) => index !== selfSlotIndex);
-        partyFormationSession = { mode, selfSlotIndex };
-        partyGhosts = ghostSlots.map((slot, index) => ({
-            id: `ghost-${index}`,
-            label: slot.label,
-            color: slot.color,
-            x: mapCenter.x,
-            y: mapCenter.y,
-            targetX: slot.x,
-            targetY: slot.y,
+    partyFormationSession.mode = targetMode;
+    partyFormationSession.role = currentRole;
+    const existingByRole = new Map(partyGhosts.map(ghost => [ghost.role, ghost]));
+    partyGhosts = nonSelfRoles.map((role, index) => {
+        const target = targetMap[role] || getIdlePartyTargets()[role];
+        const ghost = existingByRole.get(role) || {
+            id: `ghost-${role}`,
+            role,
+            label: PARTY_ROLE_LABELS[role],
+            color: getRoleColor(role),
+            x: target.x,
+            y: target.y,
             alpha: 0,
-            readyAt: Date.now() + index * 90
-        }));
-        return;
-    }
-
-    const ghostSlots = slots.filter((_, index) => index !== partyFormationSession.selfSlotIndex);
-    ghostSlots.forEach((slot, index) => {
-        const ghost = partyGhosts[index];
-        ghost.label = slot.label;
-        ghost.color = slot.color;
-        ghost.targetX = slot.x;
-        ghost.targetY = slot.y;
-        ghost.alpha = Math.min(ghost.alpha + 0.05, 0.85);
+            readyAt: Date.now() + index * 60
+        };
+        ghost.label = PARTY_ROLE_LABELS[role];
+        ghost.color = getRoleColor(role);
+        ghost.targetX = target.x;
+        ghost.targetY = target.y;
+        ghost.alpha = Math.min(ghost.alpha + 0.05, 0.9);
+        return ghost;
     });
 }
 
 function updatePartyGhosts(mode) {
     rebuildPartyGhosts(mode);
-    if (!mode || partyGhosts.length === 0) return;
+    if (partyGhosts.length === 0) return;
+
+    const now = Date.now();
+    const deadline = getGhostMovementDeadline(mode || 'IDLE');
 
     partyGhosts.forEach((ghost, index) => {
-        const delayReady = Date.now() >= ghost.readyAt;
-        const speedFactor = delayReady ? 0.14 : 0.08;
-        ghost.x += (ghost.targetX - ghost.x) * speedFactor;
-        ghost.y += (ghost.targetY - ghost.y) * speedFactor;
-        ghost.alpha = Math.min(ghost.alpha + 0.04, 0.9);
+        const delayReady = now >= ghost.readyAt;
+        const target = pickGhostTarget(ghost, mode || 'IDLE');
+        ghost.targetX = target.x;
+        ghost.targetY = target.y;
+        const travelMs = Math.ceil((Math.hypot(ghost.x - target.x, ghost.y - target.y) / player.speed) * (1000 / 60));
+        const moveStartAt = deadline == null ? Infinity : Math.max(deadline - travelMs - 120, ghost.readyAt);
+        if (delayReady && now >= moveStartAt) {
+            moveTowardPoint(ghost, target, player.speed);
+        }
+        ghost.alpha = Math.min(ghost.alpha + 0.04, 0.92);
     });
 }
 
@@ -921,6 +1370,40 @@ function drawPartyGhosts() {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(ghost.label, ghost.x, ghost.y + 0.5);
+    });
+    ctx.restore();
+}
+
+function drawShareTelegraph() {
+    const shareDebuff = getPendingShareDebuff();
+    if (!shareDebuff) return;
+
+    const telegraphTargets = getStackTelegraphTargets();
+    const pulse = 1 + Math.sin(Date.now() / 180) * 0.06;
+    const labels = [
+        { key: 'tankHealer', text: 'TH 頭割り', color: '#6dd6ff', alpha: PARTY_ROLE_GROUP[currentRole] === 'tank' || PARTY_ROLE_GROUP[currentRole] === 'healer' ? 0.95 : 0.55 },
+        { key: 'dps', text: 'DPS 頭割り', color: '#ff6b6b', alpha: PARTY_ROLE_GROUP[currentRole] === 'dps' ? 0.95 : 0.55 }
+    ];
+
+    ctx.save();
+    labels.forEach(({ key, text, color, alpha }) => {
+        const target = telegraphTargets[key];
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 24 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(target.x, target.y, 12 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillRect(target.x - 34, target.y - 46, 68, 18);
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, target.x, target.y - 37);
     });
     ctx.restore();
 }
@@ -1047,8 +1530,10 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
     let waterDebuff = activeDebuffs.find(d => d.type === "WATER" && d.timeLeft <= 2 && !d.processed);
     let thunderDebuff = activeDebuffs.find(d => d.type === "THUNDER" && d.timeLeft <= 2 && !d.processed);
     let bombDebuff = activeDebuffs.find(d => d.type === "BOMB" && d.timeLeft <= 2 && !d.processed);
-    const stackSlots = buildPartyFormation('STACK');
-    const spreadSlots = buildPartyFormation('SPREAD');
+    const stackTargets = getPartyTargets('STACK');
+    const spreadTargets = getPartyTargets('SPREAD');
+    const selfStackTarget = stackTargets[currentRole];
+    const selfSpreadTarget = spreadTargets[currentRole];
 
     let hasWater = !!waterDebuff;
     let hasThunder = !!thunderDebuff;
@@ -1062,10 +1547,10 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
     }
 
     if (isNoEnvBuff) {
-        if (!pointNearSlots(player, stackSlots)) {
+        if (!isNearPoint(player, selfStackTarget)) {
             deathMessage('supportStack');
             return;
-        } else if (pointNearSlots(player, spreadSlots)) {
+        } else if (isNearPoint(player, selfSpreadTarget)) {
             deathMessage('supportCrush');
             return;
         } else {
@@ -1082,17 +1567,17 @@ function executeEnvironmentCheck(targetAbsoluteTime) {
         }
 
         if (finalGimmickResult === "SPREAD") {
-            if (!pointNearSlots(player, spreadSlots)) {
+            if (!isNearPoint(player, selfSpreadTarget)) {
                 deathMessage('spreadFail');
-            } else if (pointNearSlots(player, stackSlots)) {
+            } else if (isNearPoint(player, selfStackTarget)) {
                 deathMessage('supportCrush');
             } else {
                 explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#ff9f1c', alpha: 1 });
             }
         } else if (finalGimmickResult === "SHARE") {
-            if (!pointNearSlots(player, stackSlots)) {
+            if (!isNearPoint(player, selfStackTarget)) {
                 deathMessage('shareFail');
-            } else if (pointNearSlots(player, spreadSlots)) {
+            } else if (isNearPoint(player, selfSpreadTarget)) {
                 deathMessage('shareCrush');
             } else {
                 explosionVisuals.push({ x: player.x, y: player.y, radius: 10, maxRadius: 80, color: '#00b4d8', alpha: 1 });
@@ -1226,6 +1711,7 @@ function resetGame() {
     isGameStarted = true; isGameOver = false; isGameCleared = false; deathReason = ""; globalStartTime = Date.now(); waveStartTime = Date.now();
     startOverlay.classList.add('hidden');
     player.x = 400; player.y = 550; player.isDead = false; player.facingX = 0; player.facingY = -1; player.facingCardinal = 'N'; player.moveTarget = null;
+    syncPlayerAppearance();
     currentWave = 1; activeDebuffs = []; explosionVisuals = []; firstWaveGroup = ""; firstWaveDurationType = "";
     backgroundEyes = [];
     subBossPlacedAoEs = []; 
@@ -1285,22 +1771,7 @@ canvas.addEventListener('click', function(e) {
 });
 
 function evaluateCurrentPosition() {
-    const px = player.x - mapCenter.x; const py = player.y - mapCenter.y;
-    let inBlizzardAoE = false;
-    if (bossA_Gimmick.blizzardPattern === 0) {
-        if ((px >= 0 && py <= 0) || (px <= 0 && py >= 0)) inBlizzardAoE = true;
-    } else {
-        if ((px <= 0 && py <= 0) || (px >= 0 && py >= 0)) inBlizzardAoE = true;
-    }
-    let inThunderAoE = false;
-    const rotX = (px - py) / Math.sqrt(2); const rotY = (px + py) / Math.sqrt(2); const w = 175; 
-    switch(bossA_Gimmick.thunderPattern) {
-        case 0: if ((rotX >= -w && rotX < 0) || (rotX >= w && rotX <= 2*w)) inThunderAoE = true; break;
-        case 1: if ((rotX >= -2*w && rotX < -w) || (rotX >= 0 && rotX < w)) inThunderAoE = true; break;
-        case 2: if ((rotY >= -w && rotY < 0) || (rotY >= w && rotY <= 2*w)) inThunderAoE = true; break;
-        case 3: if ((rotY >= -2*w && rotY < -w) || (rotY >= 0 && rotY < w)) inThunderAoE = true; break;
-    }
-    return { inBlizzardAoE, inThunderAoE };
+    return pointInBossAAoE(player);
 }
 
 function checkSafety() {
@@ -1525,10 +1996,8 @@ function draw() {
         if (currentWave === 3) drawWave3SplitAoE();
     }
 
-    const formationMode = getActiveFormationMode();
-    if (formationMode) {
-        drawPartyGhosts();
-    }
+    drawShareTelegraph();
+    drawPartyGhosts();
 
     explosionVisuals.forEach(vis => {
         ctx.save(); ctx.beginPath(); ctx.arc(vis.x, vis.y, vis.radius, 0, Math.PI * 2);
@@ -1644,12 +2113,13 @@ function draw() {
 
     ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'left';
     ctx.fillText(`${t('ui.battleTime')}: ${elapsedTimeDisplay}${t('ui.timeUnit')}`, 30, 50);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(t('ui.myRole', { role: PARTY_ROLE_LABELS[currentRole] }), 30, 76);
+    ctx.font = '13px sans-serif';
+    ctx.fillText(`向き: ${player.facingCardinal}`, 30, 101);
 
     if (isGameStarted && !isGameOver && !isGameCleared) {
         if (showDebugText) {
-            ctx.font = '13px sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(`向き: ${player.facingCardinal}`, 30, 80);
             drawGuideHintPanel(canvas.width - 18, canvas.height - 18, 340);
         }
 
@@ -1697,7 +2167,7 @@ function draw() {
                 }
 
                 if (showDebugText) {
-                    ctx.save(); ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+                    ctx.save(); ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                     let textResult = debuff.actionText;
 
                     if (currentWave === 3 && wave3TimelineState === "POPUP" && textResult === "CALC" && activeDebuffs.length >= 2) {
@@ -1806,7 +2276,7 @@ function update() {
     if (player.moveTarget) {
         player.moveTarget = clampPointToArena(player.moveTarget.x, player.moveTarget.y);
     }
-    const formationMode = getActiveFormationMode();
+    const formationMode = getActiveFormationMode() || 'IDLE';
     updatePartyGhosts(formationMode);
     explosionVisuals.forEach(vis => { vis.radius += 2.5; vis.alpha -= 0.02; });
     explosionVisuals = explosionVisuals.filter(vis => vis.alpha > 0);
