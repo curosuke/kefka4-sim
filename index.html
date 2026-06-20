@@ -1333,14 +1333,14 @@ function draw() {
     ctx.restore();
 
     if (isGameStarted) {
-        if (bosses[0].isCasting) drawAoELayers(0.14, 0.20); 
-        else if (bossA_Gimmick.showAoE) drawAoELayers(0.55, 0.65); 
+        if (bosses[0].isCasting && bosses[0].castName !== "두근두근 알테마") drawAoELayers(0.40, 0.50); 
+        else if (bossA_Gimmick.showAoE) drawAoELayers(0.80, 0.85); 
         
-        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.18);
-        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.60);
+        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.40);
+        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.80);
 
-        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.18);
-        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.60);
+        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.40);
+        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.80);
 
         drawFinalMemoryAoE();
 
