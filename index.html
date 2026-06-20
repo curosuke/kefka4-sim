@@ -231,6 +231,7 @@ const TEXTS = {
             bombStop: '가속도 폭탄 실패: 멈추지 않음!',
             supportStack: '기믹 실패: [지원 타이밍] 디버프 미보유 상태이므로 12시/6시(쉐어 위치)로 집합해야 합니다!',
             supportCrush: '기믹 실패: 지원 타이밍에 3시/9시 영역 침범!',
+            redLine: '3회차 실패: 중앙 붉은색 직선 장판을 밟았습니다!',
             spreadFail: '기믹 실패: [산개 판정] 보스 조건에 따른 산개 정위치(3시/9시) 이탈!',
             shareFail: '기믹 실패: [쉐어 판정] 보스 조건에 따른 집합 정위치(12시/6시) 이탈!',
             shareCrush: '기믹 실패: 쉐어 단계에서 3시/9시 영역 침범!',
@@ -292,6 +293,7 @@ const TEXTS = {
             bombStop: '加速度爆弾失敗: 止まっていない!',
             supportStack: 'ギミック失敗: [集合タイミング] デバフなしなので 12時/6時(頭割り位置) に集合してください!',
             supportCrush: 'ギミック失敗: 集合タイミングで 3時/9時 領域に侵入!',
+            redLine: '3回目失敗: 中央の赤い直線範囲を踏みました!',
             spreadFail: 'ギミック失敗: [散開判定] ボス条件に応じた散開位置(3時/9時) から外れた!',
             shareFail: 'ギミック失敗: [頭割り判定] ボス条件に応じた集合位置(12時/6時) から外れた!',
             shareCrush: 'ギミック失敗: 頭割り段階で 3時/9時 領域に侵入!',
@@ -667,7 +669,7 @@ let isSubBossesVanished = false;
 let wave3TimelineState = "NONE"; 
 let wave3TimerAnchor = null;
 
-let wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+let wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '', isPinkRight: true };
 
 let thunderga_Gimmick = {
     isCasting: false,
@@ -986,7 +988,20 @@ function checkWave3SplitSafety() {
     const bCenterX = mapCenter.x - wave3BossB.x; const bCenterY = mapCenter.y - wave3BossB.y;
     
     const crossProduct = bCenterX * vY - bCenterY * vX;
-    let standOnColor = (crossProduct >= 0) ? "PINK" : "BLUE";
+    const distBossToCenter = Math.sqrt(bCenterX * bCenterX + bCenterY * bCenterY);
+    const distToLine = Math.abs(crossProduct) / distBossToCenter;
+
+    if (distToLine <= 75) {
+        deathMessage('redLine');
+        return;
+    }
+
+    let standOnColor;
+    if (wave3BossB.isPinkRight) {
+        standOnColor = (crossProduct >= 0) ? "PINK" : "BLUE";
+    } else {
+        standOnColor = (crossProduct >= 0) ? "BLUE" : "PINK";
+    }
 
     let isBlueScar = colorDebuff.type === "DEAD_SCAR";
     let isAlagField = hitDebuff.type === "ALAG";
@@ -1046,7 +1061,7 @@ function resetGame() {
     isSubBossesVanished = false;
     wave3TimelineState = "NONE";
     wave3TimerAnchor = null;
-    wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '' };
+    wave3BossB = { x: 0, y: 0, angle: 0, isCasting: false, startTime: null, duration: 5000, progress: 0, showAoE: false, currentEffect: '', isPinkRight: true };
 
     thunderga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', thunderPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
     blizzaga_Gimmick = { isCasting: false, startTime: null, duration: 4000, progress: 0, effect: '', blizzardPattern: 0, showAoE: false, aoeStartTime: null, judged: false };
@@ -1179,8 +1194,14 @@ function drawWave3SplitAoE() {
     const targetAngle = Math.atan2(mapCenter.y - wave3BossB.y, mapCenter.x - wave3BossB.x);
     ctx.translate(wave3BossB.x, wave3BossB.y); ctx.rotate(targetAngle);
 
-    ctx.fillStyle = "rgba(255, 105, 180, 0.3)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
-    ctx.fillStyle = "rgba(0, 180, 216, 0.3)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    if (wave3BossB.isPinkRight) {
+        ctx.fillStyle = "rgba(255, 105, 180, 0.3)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
+        ctx.fillStyle = "rgba(0, 180, 216, 0.3)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    } else {
+        ctx.fillStyle = "rgba(0, 180, 216, 0.3)"; ctx.fillRect(0, 0, mapRadius * 3, mapRadius * 3);
+        ctx.fillStyle = "rgba(255, 105, 180, 0.3)"; ctx.fillRect(0, -mapRadius * 3, mapRadius * 3, mapRadius * 3);
+    }
+    ctx.fillStyle = "rgba(255, 0, 0, 0.3)"; ctx.fillRect(0, -75, mapRadius * 3, 150);
     ctx.restore();
 }
 
@@ -1312,14 +1333,14 @@ function draw() {
     ctx.restore();
 
     if (isGameStarted) {
-        if (bosses[0].isCasting) drawAoELayers(0.08, 0.12); 
-        else if (bossA_Gimmick.showAoE) drawAoELayers(0.35, 0.45); 
+        if (bosses[0].isCasting) drawAoELayers(0.14, 0.20); 
+        else if (bossA_Gimmick.showAoE) drawAoELayers(0.55, 0.65); 
         
-        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.12);
-        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.45);
+        if (thunderga_Gimmick.isCasting) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.18);
+        else if (thunderga_Gimmick.showAoE) drawThundergaAoELayer(thunderga_Gimmick.thunderPattern, 0.60);
 
-        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.12);
-        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.45);
+        if (blizzaga_Gimmick.isCasting) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.18);
+        else if (blizzaga_Gimmick.showAoE) drawBlizzagaAoELayer(blizzaga_Gimmick.blizzardPattern, 0.60);
 
         drawFinalMemoryAoE();
 
@@ -1367,7 +1388,7 @@ function draw() {
         if (isInterfaceActive) {
             if (index === 0) {
                 if (finalMemoryState.showRings) drawFinalMemoryRings(boss.x, boss.y);
-                else drawCenterBossRings(boss.x, boss.y);
+                else if (boss.castName !== "두근두근 알테마") drawCenterBossRings(boss.x, boss.y);
             } else {
                 ctx.save(); ctx.translate(boss.x, boss.y);
                 const ringRadiusX = 45; const ringRadiusY = 15; const size = 20;
@@ -1710,7 +1731,8 @@ function update() {
                     duration: 5000, 
                     progress: 0,
                     showAoE: true,
-                    currentEffect: bossTruthRule 
+                    currentEffect: bossTruthRule,
+                    isPinkRight: Math.random() < 0.5
                 };
             }
         }
